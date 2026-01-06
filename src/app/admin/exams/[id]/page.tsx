@@ -1,0 +1,269 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle } from 'lucide-react';
+
+export default function ExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
+    const router = useRouter();
+    const [exam, setExam] = useState<any>(null);
+    const [results, setResults] = useState<any[]>([]);
+    const [assignedCandidates, setAssignedCandidates] = useState<number[]>([]);
+    const [isAssignedOnly, setIsAssignedOnly] = useState(false);
+    const [adminList, setAdminList] = useState<any[]>([]);
+    const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [examId, setExamId] = useState<string>('');
+
+    useEffect(() => {
+        params.then(p => setExamId(p.id));
+    }, [params]);
+
+    useEffect(() => {
+        if (!examId) return;
+        const fetchResults = async () => {
+            try {
+                const res = await fetch(`/api/admin/exams/${examId}/results`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setExam(data.exam);
+                    setResults(data.results);
+                    setAssignedCandidates(data.assignedCandidates || []);
+                    setIsAssignedOnly(data.isAssignedOnly || false);
+                    setAdminList(data.adminList || []);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchResults();
+    }, [examId]);
+
+    // Filter results based on selected admin
+    const displayedResults = selectedAdminId === null
+        ? (isAssignedOnly ? results.filter(r => assignedCandidates.includes(r.user_id)) : results)
+        : results.filter(r => {
+            const admin = adminList.find(a => a.admin_id === selectedAdminId);
+            return admin && admin.candidate_ids.includes(r.user_id);
+        });
+
+    if (loading) return <div className="p-8">Loading...</div>;
+
+    return (
+        <div className="min-h-screen bg-gray-50 p-3 sm:p-6 font-sans">
+            <div className="max-w-5xl mx-auto">
+                <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                    <img src="/asisya.png" alt="Asisya" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg" />
+                    <button
+                        onClick={() => router.back()}
+                        className="flex items-center text-gray-500 hover:text-gray-800 text-sm sm:text-base"
+                    >
+                        <ArrowLeft size={16} className="mr-1 sm:mr-2 sm:w-5 sm:h-5" /> Kembali
+                    </button>
+                </div>
+
+                <header className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800">{exam?.title}</h1>
+                    <p className="text-gray-500 mt-1 text-sm sm:text-base">Hasil Peserta Ujian</p>
+                    {isAssignedOnly && (
+                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                            <Users size={14} />
+                            Menampilkan {assignedCandidates.length} kandidat yang ditugaskan ke Anda
+                        </div>
+                    )}
+                </header>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-6">
+                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+                        <div className="text-gray-500 text-xs sm:text-sm font-medium mb-1">
+                            {isAssignedOnly ? 'Kandidat Saya' : 'Total'}
+                        </div>
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-800">{displayedResults.length}</div>
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 hidden sm:block">
+                            {isAssignedOnly ? 'Ditugaskan ke Anda' : 'Peserta ujian'}
+                        </p>
+                    </div>
+                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
+                        <div className="text-gray-500 text-xs sm:text-sm font-medium mb-1">Selesai</div>
+                        <div className="text-2xl sm:text-3xl font-bold text-green-600">{displayedResults.filter(r => r.score !== null).length}</div>
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 hidden sm:block">Sudah mengumpulkan</p>
+                    </div>
+                </div>
+
+                {/* Admin Filter - Button + Dropdown */}
+                {adminList.length > 0 && (
+                    <div className="mb-6 flex items-center gap-3">
+                        <button
+                            onClick={() => setSelectedAdminId(null)}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                selectedAdminId === null
+                                    ? 'bg-blue-800 text-white shadow-md'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                            Semua ({results.length})
+                        </button>
+                        <select
+                            value={selectedAdminId || ''}
+                            onChange={(e) => setSelectedAdminId(e.target.value ? parseInt(e.target.value) : null)}
+                            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        >
+                            <option value="">Pilih Admin...</option>
+                            {adminList.map((admin) => {
+                                const adminResultCount = results.filter(r => admin.candidate_ids.includes(r.user_id)).length;
+                                return (
+                                    <option key={admin.admin_id} value={admin.admin_id}>
+                                        {admin.admin_name} ({adminResultCount})
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                )}
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm">
+                                    <th className="px-6 py-3 font-medium">Nama Peserta</th>
+                                    <th className="px-6 py-3 font-medium">Waktu Selesai</th>
+                                    <th className="px-6 py-3 font-medium text-center">Nilai</th>
+                                    <th className="px-6 py-3 font-medium text-center">Benar</th>
+                                    <th className="px-6 py-3 font-medium text-center">Salah</th>
+                                    <th className="px-6 py-3 font-medium text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {displayedResults.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                            {selectedAdminId !== null
+                                                ? 'Belum ada kandidat dari admin ini yang menyelesaikan ujian.'
+                                                : isAssignedOnly 
+                                                    ? 'Belum ada kandidat Anda yang menyelesaikan ujian ini.'
+                                                    : 'Belum ada peserta yang menyelesaikan ujian ini.'
+                                            }
+                                        </td>
+                                    </tr>
+                                ) : displayedResults.map((res: any) => (
+                                    <tr key={res.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
+                                                {res.student.charAt(0)}
+                                            </div>
+                                            {res.student}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-500 text-sm">
+                                            {new Date(res.end_time).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-center font-bold text-lg text-blue-600">
+                                            {res.score}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">
+                                                <CheckCircle size={14} /> {res.correct_count}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-bold">
+                                                <XCircle size={14} /> {res.incorrect_count}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-2 items-center">
+                                                <button
+                                                    onClick={() => router.push(`/admin/exams/${examId}/answers/${res.id}`)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg text-xs font-medium transition-colors w-full justify-center"
+                                                >
+                                                    <FileText size={14} />
+                                                    Detail Jawaban
+                                                </button>
+                                                <button
+                                                    onClick={() => router.push(`/admin/candidates/${res.user_id}`)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 rounded-lg text-xs font-medium transition-colors w-full justify-center"
+                                                >
+                                                    <UserCircle size={14} />
+                                                    Data Diri
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden divide-y divide-gray-100">
+                        {displayedResults.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500 text-sm">
+                                {selectedAdminId !== null
+                                    ? 'Belum ada kandidat dari admin ini yang menyelesaikan ujian.'
+                                    : isAssignedOnly 
+                                        ? 'Belum ada kandidat Anda yang menyelesaikan ujian ini.'
+                                        : 'Belum ada peserta yang menyelesaikan ujian ini.'
+                                }
+                            </div>
+                        ) : displayedResults.map((res: any) => (
+                            <div key={res.id} className="p-4 hover:bg-gray-50 active:bg-gray-100">
+                                <div className="flex items-start gap-3 mb-3">
+                                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
+                                        {res.student.charAt(0)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-gray-900 truncate">{res.student}</div>
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                            {new Date(res.end_time).toLocaleDateString('id-ID', { 
+                                                day: 'numeric', 
+                                                month: 'short',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <div className="text-2xl font-bold text-blue-600">{res.score}</div>
+                                        <div className="text-[10px] text-gray-400">Nilai</div>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-2 mb-3">
+                                    <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
+                                        <div className="text-xs text-green-600 font-medium">Benar</div>
+                                        <div className="text-lg font-bold text-green-700">{res.correct_count}</div>
+                                    </div>
+                                    <div className="flex-1 bg-red-50 rounded-lg p-2 text-center">
+                                        <div className="text-xs text-red-600 font-medium">Salah</div>
+                                        <div className="text-lg font-bold text-red-700">{res.incorrect_count}</div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => router.push(`/admin/exams/${examId}/answers/${res.id}`)}
+                                        className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-100 active:bg-blue-200 text-blue-800 rounded-lg text-xs font-medium touch-manipulation"
+                                    >
+                                        <FileText size={14} />
+                                        Jawaban
+                                    </button>
+                                    <button
+                                        onClick={() => router.push(`/admin/candidates/${res.user_id}`)}
+                                        className="flex items-center justify-center gap-1 px-3 py-2 bg-green-100 active:bg-green-200 text-green-800 rounded-lg text-xs font-medium touch-manipulation"
+                                    >
+                                        <UserCircle size={14} />
+                                        Data Diri
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
