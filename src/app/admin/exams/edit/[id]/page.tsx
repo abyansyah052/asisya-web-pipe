@@ -26,6 +26,7 @@ interface Exam {
     is_special?: boolean;
     instructions?: string;
     display_mode?: 'per_page' | 'scroll';
+    thumbnail?: string;
 }
 
 export default function EditExamPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
     const [duration, setDuration] = useState(60);
     const [status, setStatus] = useState('draft');
     const [displayMode, setDisplayMode] = useState<'per_page' | 'scroll'>('per_page');
+    const [thumbnail, setThumbnail] = useState('');
     const [questions, setQuestions] = useState<Question[]>([]);
     const [examId, setExamId] = useState<string>('');
     const [alertModal, setAlertModal] = useState<{show: boolean, message: string, type: 'success' | 'error'}>({show: false, message: '', type: 'error'});
@@ -62,6 +64,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                 setDuration(data.exam.duration_minutes);
                 setStatus(data.exam.status);
                 setDisplayMode(data.exam.display_mode || 'per_page');
+                setThumbnail(data.exam.thumbnail || '');
                 setQuestions(data.questions.map((q: any) => ({
                     id: q.id,
                     text: q.text,
@@ -168,6 +171,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                     duration_minutes: duration,
                     status,
                     display_mode: displayMode,
+                    thumbnail,
                     questions,
                     is_special: exam?.is_special || false
                 })
@@ -295,6 +299,24 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                                 rows={3}
                                 placeholder="Deskripsi singkat tentang ujian ini..."
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail (URL gambar)</label>
+                            <div className="flex gap-4">
+                                <input
+                                    type="text"
+                                    value={thumbnail}
+                                    onChange={(e) => setThumbnail(e.target.value)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                                {thumbnail && (
+                                    <div className="w-20 h-20 rounded-lg border border-gray-300 overflow-hidden flex-shrink-0">
+                                        <img src={thumbnail} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Masukkan URL gambar untuk thumbnail ujian</p>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>

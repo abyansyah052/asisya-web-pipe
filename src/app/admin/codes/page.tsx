@@ -63,7 +63,7 @@ export default function AdminCodesPage() {
             }
             if (res.ok) {
                 const data = await res.json();
-                setCodes(data);
+                setCodes(data.codes || data);
             }
         } catch (err) {
             console.error(err);

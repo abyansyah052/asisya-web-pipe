@@ -61,10 +61,13 @@ export default function ProfileCompletionPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData),
+                credentials: 'include', // Ensure cookies are sent and received
             });
 
             if (res.ok) {
-                router.push('/candidate/dashboard');
+                // Wait a moment for cookie to be set, then navigate
+                await new Promise(resolve => setTimeout(resolve, 100));
+                window.location.href = '/candidate/dashboard'; // Full page reload to ensure new session is used
             } else {
                 const data = await res.json();
                 alert(data.error || 'Gagal menyimpan profil');

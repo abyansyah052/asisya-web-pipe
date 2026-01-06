@@ -7,6 +7,9 @@ import { ROLES } from '@/lib/roles';
 // OPTIMIZED CANDIDATE LOGIN FOR 800 CONCURRENT USERS
 // =============================================
 
+// Kode yang sudah dipakai masih bisa digunakan dalam 2 hari (untuk preventif jaringan bermasalah)
+const REUSE_WINDOW_DAYS = 2;
+
 export async function POST(req: NextRequest) {
     try {
         const { code } = await req.json();
@@ -30,6 +33,7 @@ export async function POST(req: NextRequest) {
                 cc.expires_at,
                 cc.max_uses,
                 cc.current_uses,
+                cc.used_at,
                 cc.metadata,
                 u.id as user_id,
                 u.username,
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
 
         const codeData = result.rows[0];
 
-        // Validate code
+        // Validate expiry
         if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
             return NextResponse.json(
                 { error: 'Kode sudah kedaluwarsa' },
@@ -59,16 +63,38 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // Check max_uses with 2-day reuse window
+        // Jika kode sudah dipakai, masih bisa login selama 2 hari setelah used_at
         if (codeData.max_uses && codeData.current_uses >= codeData.max_uses) {
-            return NextResponse.json(
-                { error: 'Kode sudah mencapai batas penggunaan' },
-                { status: 401 }
-            );
+            // Cek apakah masih dalam window reuse (2 hari setelah pertama kali dipakai)
+            if (codeData.used_at) {
+                const usedAt = new Date(codeData.used_at);
+                const reuseDeadline = new Date(usedAt.getTime() + (REUSE_WINDOW_DAYS * 24 * 60 * 60 * 1000));
+                
+                if (new Date() > reuseDeadline) {
+                    return NextResponse.json(
+                        { error: 'Kode sudah mencapai batas penggunaan dan melewati masa tenggang 2 hari' },
+                        { status: 401 }
+                    );
+                }
+                // Masih dalam window, allow re-login tanpa increment usage
+                console.log(`Code ${normalizedCode} re-used within ${REUSE_WINDOW_DAYS}-day window`);
+            } else {
+                return NextResponse.json(
+                    { error: 'Kode sudah mencapai batas penggunaan' },
+                    { status: 401 }
+                );
+            }
         }
 
         let userId: number;
         let profileCompleted = false;
         let username: string;
+
+        // Check if within reuse window (don't increment usage if already maxed)
+        const isReuseWithinWindow = codeData.max_uses && 
+            codeData.current_uses >= codeData.max_uses && 
+            codeData.used_at;
 
         if (codeData.candidate_id) {
             // Existing candidate
@@ -76,11 +102,13 @@ export async function POST(req: NextRequest) {
             profileCompleted = codeData.profile_completed || false;
             username = codeData.username || `candidate_${userId}`;
 
-            // Update usage count only
-            await pool.query(
-                'UPDATE candidate_codes SET current_uses = current_uses + 1 WHERE id = $1',
-                [codeData.code_id]
-            );
+            // Only increment usage if not already maxed (reuse window case)
+            if (!isReuseWithinWindow) {
+                await pool.query(
+                    'UPDATE candidate_codes SET current_uses = current_uses + 1 WHERE id = $1',
+                    [codeData.code_id]
+                );
+            }
         } else {
             // Create new candidate - single transaction
             const candidateUsername = `candidate_${normalizedCode.toLowerCase()}`;

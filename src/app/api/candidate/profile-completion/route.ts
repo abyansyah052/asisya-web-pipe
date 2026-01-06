@@ -111,13 +111,24 @@ export async function POST(req: Request) {
 
             await client.query('COMMIT');
 
-            // Update session cookie
-            const updatedSession = { ...session, profileCompleted: true };
+            // Update session cookie with JWT (must encrypt, not JSON.stringify)
+            const { encrypt } = await import('@/lib/auth');
+            const updatedToken = await encrypt({
+                id: session.id,
+                role: session.role,
+                username: session.username,
+                profileCompleted: true,
+                organizationId: session.organizationId
+            });
+
             const response = NextResponse.json({ success: true });
             response.cookies.set({
                 name: 'user_session',
-                value: JSON.stringify(updatedSession),
+                value: updatedToken,
                 httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 60 * 60 * 8,
                 path: '/',
             });
 

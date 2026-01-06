@@ -18,18 +18,20 @@ export async function GET() {
         const client = await pool.connect();
         try {
             const query = `
-                SELECT cc.*, e.title as exam_title,
-                       cc.candidate_name,
+                SELECT cc.id, cc.code, cc.created_at, cc.expires_at, cc.used_at,
+                       cc.is_active, cc.current_uses, cc.max_uses,
+                       cc.metadata->>'name' as candidate_name,
+                       e.title as exam_title,
                        u.id as used_by_user_id,
                        u.email as used_by_email
                 FROM candidate_codes cc
                 LEFT JOIN exams e ON cc.exam_id = e.id
-                LEFT JOIN users u ON cc.used_by_user_id = u.id
+                LEFT JOIN users u ON cc.candidate_id = u.id
                 ORDER BY cc.created_at DESC
             `;
 
             const result = await client.query(query);
-            return NextResponse.json(result.rows);
+            return NextResponse.json({ codes: result.rows });
         } finally {
             client.release();
         }

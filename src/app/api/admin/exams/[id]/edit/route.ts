@@ -69,7 +69,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
         const { id: examId } = await params;
         const body = await req.json();
-        const { title, description, duration_minutes, status, display_mode, questions } = body;
+        const { title, description, duration_minutes, status, display_mode, questions, thumbnail } = body;
 
         if (!title || !duration_minutes || !questions || questions.length === 0) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -80,10 +80,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         try {
             await client.query('BEGIN');
 
-            // Update exam with display_mode
+            // Update exam with display_mode and thumbnail
             await client.query(
-                'UPDATE exams SET title = $1, description = $2, duration_minutes = $3, status = $4, display_mode = $5 WHERE id = $6',
-                [title, description || '', duration_minutes, status, display_mode || 'per_page', examId]
+                'UPDATE exams SET title = $1, description = $2, duration_minutes = $3, status = $4, display_mode = $5, thumbnail = $6 WHERE id = $7',
+                [title, description || '', duration_minutes, status, display_mode || 'per_page', thumbnail || null, examId]
             );
 
             // Delete existing questions and options (CASCADE will handle options)
