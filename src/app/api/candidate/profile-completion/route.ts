@@ -29,12 +29,13 @@ export async function POST(req: Request) {
         const lokasiTest = body.lokasi_test || body.lokasiTest;
         const alamatKtp = body.alamat_ktp || body.alamatKtp;
         const nik = body.nik;
+        const maritalStatus = body.marital_status || body.maritalStatus;
         // Photo is optional
         const foto = body.foto || body.photo || null;
 
         // Validation - required fields
         if (!fullName || !tanggalLahir || !jenisKelamin || 
-            !pendidikanTerakhir || !lokasiTest || !alamatKtp || !nik) {
+            !pendidikanTerakhir || !lokasiTest || !alamatKtp || !nik || !maritalStatus) {
             return NextResponse.json({ 
                 error: 'Semua field wajib diisi (kecuali foto dan pekerjaan)',
                 missing: {
@@ -44,7 +45,8 @@ export async function POST(req: Request) {
                     pendidikanTerakhir: !pendidikanTerakhir,
                     lokasiTest: !lokasiTest,
                     alamatKtp: !alamatKtp,
-                    nik: !nik
+                    nik: !nik,
+                    maritalStatus: !maritalStatus
                 }
             }, { status: 400 });
         }
@@ -86,20 +88,21 @@ export async function POST(req: Request) {
                         alamat_ktp = $8,
                         nik = $9,
                         foto = $10,
+                        marital_status = $11,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $11`,
+                    WHERE user_id = $12`,
                     [fullName, tanggalLahir, usia, jenisKelamin, pendidikanTerakhir,
-                     pekerjaan || null, lokasiTest, alamatKtp, nik, foto, userId]
+                     pekerjaan || null, lokasiTest, alamatKtp, nik, foto, maritalStatus, userId]
                 );
             } else {
                 // Insert new profile
                 await client.query(
                     `INSERT INTO user_profiles 
                         (user_id, full_name, tanggal_lahir, usia, jenis_kelamin,
-                         pendidikan_terakhir, pekerjaan, lokasi_test, alamat_ktp, nik, foto)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                         pendidikan_terakhir, pekerjaan, lokasi_test, alamat_ktp, nik, foto, marital_status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
                     [userId, fullName, tanggalLahir, usia, jenisKelamin,
-                     pendidikanTerakhir, pekerjaan || null, lokasiTest, alamatKtp, nik, foto]
+                     pendidikanTerakhir, pekerjaan || null, lokasiTest, alamatKtp, nik, foto, maritalStatus]
                 );
             }
 

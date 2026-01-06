@@ -49,7 +49,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
             // 3. Get Questions and Options - OPTIMIZED with Map for O(1) lookup
             const qRes = await client.query(
-                'SELECT id, text, marks FROM questions WHERE exam_id = $1 AND deleted_at IS NULL ORDER BY id ASC',
+                'SELECT id, text, marks FROM questions WHERE exam_id = $1 ORDER BY id ASC',
                 [examId]
             );
             const questions = qRes.rows;
@@ -63,7 +63,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             // Fetch options WITHOUT is_correct (security: don't send answers to client)
             // OPTIMIZED: Use ANY($1::int[]) instead of subquery
             const optRes = await client.query(
-                `SELECT id, question_id, text FROM options WHERE question_id = ANY($1::int[]) AND deleted_at IS NULL ORDER BY question_id, id`,
+                `SELECT id, question_id, text FROM options WHERE question_id = ANY($1::int[]) ORDER BY question_id, id`,
                 [questionIds]
             );
             const options = optRes.rows;
