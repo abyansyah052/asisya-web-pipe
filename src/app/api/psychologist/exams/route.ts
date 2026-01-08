@@ -17,17 +17,21 @@ export async function GET() {
 
         const client = await pool.connect();
         try {
-            // All users with psychologist access can see all exams
-            // (exams table doesn't have created_by column)
+            // Get all exams with question count and assignment info for current user
             const query = `
-                SELECT e.*, COUNT(q.id) as question_count 
+                SELECT 
+                    e.*, 
+                    COUNT(DISTINCT q.id) as question_count,
+                    COUNT(DISTINCT cg.candidate_id) as assigned_candidates,
+                    CASE WHEN COUNT(DISTINCT cg.candidate_id) > 0 THEN true ELSE false END as is_assigned_to_me
                 FROM exams e
                 LEFT JOIN questions q ON e.id = q.exam_id
+                LEFT JOIN candidate_groups cg ON e.id = cg.exam_id AND cg.assessor_id = $1
                 GROUP BY e.id
                 ORDER BY e.created_at DESC
             `;
 
-            const result = await client.query(query);
+            const result = await client.query(query, [session.userId]);
             return NextResponse.json(result.rows);
         } finally {
             client.release();

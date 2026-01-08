@@ -32,20 +32,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             );
 
             let attemptId;
+            let startTime: Date;
+            
             if (attemptRes.rows.length > 0) {
                 const attempt = attemptRes.rows[0];
                 if (attempt.status === 'completed') {
                     return NextResponse.json({ error: 'Exam already completed' }, { status: 403 });
                 }
                 attemptId = attempt.id;
+                startTime = new Date(attempt.start_time);
             } else {
                 // Start new attempt
                 const newAttempt = await client.query(
-                    'INSERT INTO exam_attempts (user_id, exam_id, start_time, status) VALUES ($1, $2, NOW(), $3) RETURNING id',
+                    'INSERT INTO exam_attempts (user_id, exam_id, start_time, status) VALUES ($1, $2, NOW(), $3) RETURNING id, start_time',
                     [user.id, examId, 'in_progress']
                 );
                 attemptId = newAttempt.rows[0].id;
+                startTime = new Date(newAttempt.rows[0].start_time);
             }
+
+            // ✅ Calculate remaining time based on start_time
+            const now = new Date();
+            const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+            const totalSeconds = exam.duration_minutes * 60;
+            const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
 
             // 3. Get Questions and Options - OPTIMIZED with Map for O(1) lookup
             const qRes = await client.query(
@@ -83,6 +93,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 options: optionsMap.get(q.id) || []
             }));
 
+            // ✅ Load saved answers from database (persist across reconnect)
+            const savedAnswersRes = await client.query(
+                `SELECT question_id, selected_option_id FROM exam_answers WHERE attempt_id = $1`,
+                [attemptId]
+            );
+            const savedAnswers: { [key: number]: number } = {};
+            savedAnswersRes.rows.forEach((row: { question_id: number; selected_option_id: number }) => {
+                savedAnswers[row.question_id] = row.selected_option_id;
+            });
+
             return NextResponse.json({
                 exam: { 
                     title: exam.title, 
@@ -92,7 +112,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     description: exam.description || null
                 },
                 attemptId,
-                questions: questionsDid
+                questions: questionsDid,
+                // ✅ Send remaining time from server (persists across refresh)
+                remainingSeconds,
+                startTime: startTime.toISOString(),
+                // ✅ Send saved answers (persist across reconnect)
+                savedAnswers
             });
 
         } finally {

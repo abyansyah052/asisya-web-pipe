@@ -4,12 +4,11 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { canAccessAdminFeatures } from '@/lib/roles';
 
-// Generate random code like XXXX-XXXX-XXXX
+// Generate random code - 16 alphanumeric characters (consistent with import)
 function generateCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
-    for (let i = 0; i < 12; i++) {
-        if (i > 0 && i % 4 === 0) code += '-';
+    for (let i = 0; i < 16; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
@@ -42,7 +41,7 @@ export async function POST(req: NextRequest) {
             for (let i = 0; i < count; i++) {
                 let code: string;
                 let isUnique = false;
-                
+
                 // Keep generating until we get a unique code
                 while (!isUnique) {
                     code = generateCode();
@@ -52,12 +51,12 @@ export async function POST(req: NextRequest) {
                     );
                     if (existing.rows.length === 0) {
                         isUnique = true;
-                        
+
                         // Insert the code
-                        const metadata = candidateName && count === 1 
+                        const metadata = candidateName && count === 1
                             ? JSON.stringify({ name: candidateName })
                             : '{}';
-                        
+
                         await client.query(
                             `INSERT INTO candidate_codes 
                              (code, created_by, admin_id, exam_id, expires_at, metadata)
@@ -71,14 +70,14 @@ export async function POST(req: NextRequest) {
                                 metadata
                             ]
                         );
-                        
+
                         codes.push(code);
                     }
                 }
             }
 
-            return NextResponse.json({ 
-                success: true, 
+            return NextResponse.json({
+                success: true,
                 codes,
                 expiresAt: expiresAt.toISOString()
             });

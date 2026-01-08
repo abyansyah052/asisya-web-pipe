@@ -90,11 +90,11 @@ export default function ProfileCompletionPage() {
     return (
         <div className="min-h-screen flex flex-col bg-slate-50">
             {/* Header */}
-            <header className="w-full bg-white border-b border-slate-200 px-3 sm:px-4 md:px-10 py-2.5 sm:py-3 sticky top-0 z-50 shadow-sm">
+            <header className="w-full bg-white border-b border-orange-100 px-3 sm:px-4 md:px-10 py-2.5 sm:py-3 sticky top-0 z-50 shadow-sm">
                 <div className="max-w-[1280px] mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-900 min-w-0">
-                        <img src="/asisya.png" alt="Asisya" className="h-8 sm:h-10 w-auto shrink-0" />
-                        <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate">Asisya Consulting</h2>
+                        <img src="/kimia-farma.jpg" alt="Kimia Farma" className="h-8 sm:h-10 w-auto shrink-0" />
+                        <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate text-orange-600">Kimia Farma Assessment</h2>
                     </div>
                     <button
                         onClick={handleLogout}
@@ -117,7 +117,7 @@ export default function ProfileCompletionPage() {
                         <span className="text-slate-500 text-[10px] sm:text-xs font-medium">50%</span>
                     </div>
                     <div className="rounded-full bg-slate-200 h-1.5 sm:h-2 w-full overflow-hidden">
-                        <div className="h-full bg-blue-600 transition-all duration-500" style={{ width: '50%' }}></div>
+                        <div className="h-full bg-orange-600 transition-all duration-500" style={{ width: '50%' }}></div>
                     </div>
                 </div>
 
@@ -136,10 +136,10 @@ export default function ProfileCompletionPage() {
                     {/* Photo Section */}
                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center pb-6 sm:pb-8 border-b border-slate-200 mb-6 sm:mb-8">
                         <div className="relative group">
-                            <div className="aspect-square bg-gradient-to-br from-blue-500 to-blue-700 rounded-full h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 border-4 border-white shadow-lg flex items-center justify-center">
+                            <div className="aspect-square bg-gradient-to-br from-orange-500 to-orange-700 rounded-full h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 border-4 border-white shadow-lg flex items-center justify-center">
                                 <User className="w-8 h-8 sm:w-10 sm:h-10 text-white/80" />
                             </div>
-                            <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 sm:p-2 rounded-full hover:bg-blue-700 shadow-lg transition-all">
+                            <button className="absolute bottom-0 right-0 bg-orange-600 text-white p-1.5 sm:p-2 rounded-full hover:bg-orange-700 shadow-lg transition-all">
                                 <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
                         </div>
@@ -167,7 +167,7 @@ export default function ProfileCompletionPage() {
                                     name="full_name"
                                     value={formData.full_name}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-sm sm:text-base"
                                     placeholder="Nama lengkap sesuai KTP"
                                 />
                             </div>
@@ -183,7 +183,7 @@ export default function ProfileCompletionPage() {
                                     name="nik"
                                     value={formData.nik}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-sm sm:text-base"
                                     placeholder="16 digit NIK"
                                     maxLength={16}
                                 />
@@ -201,7 +201,7 @@ export default function ProfileCompletionPage() {
                                     name="tanggal_lahir"
                                     value={formData.tanggal_lahir}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-sm sm:text-base"
                                 />
                             </div>
                         </div>
@@ -216,7 +216,7 @@ export default function ProfileCompletionPage() {
                                     name="jenis_kelamin"
                                     value={formData.jenis_kelamin}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
                                 >
                                     <option value="">Pilih jenis kelamin</option>
                                     <option value="Laki-laki">Laki-laki</option>
@@ -240,7 +240,7 @@ export default function ProfileCompletionPage() {
                                     name="marital_status"
                                     value={formData.marital_status}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
                                 >
                                     <option value="">Pilih status</option>
                                     {MARITAL_STATUS_OPTIONS.map((opt) => (
@@ -265,7 +265,7 @@ export default function ProfileCompletionPage() {
                                     name="pendidikan_terakhir"
                                     value={formData.pendidikan_terakhir}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 appearance-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all cursor-pointer text-sm sm:text-base"
                                 >
                                     <option value="">Pilih pendidikan</option>
                                     {PENDIDIKAN_OPTIONS.map((opt) => (
@@ -289,7 +289,7 @@ export default function ProfileCompletionPage() {
                                     name="pekerjaan"
                                     value={formData.pekerjaan}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-sm sm:text-base"
                                     placeholder="Contoh: Marketing Manager"
                                 />
                             </div>
@@ -305,7 +305,7 @@ export default function ProfileCompletionPage() {
                                     name="lokasi_test"
                                     value={formData.lokasi_test}
                                     onChange={handleChange}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all text-sm sm:text-base"
                                     placeholder="Lokasi mengikuti test"
                                 />
                             </div>
@@ -322,7 +322,7 @@ export default function ProfileCompletionPage() {
                                     value={formData.alamat_ktp}
                                     onChange={handleChange}
                                     rows={3}
-                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none text-sm sm:text-base"
+                                    className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all resize-none text-sm sm:text-base"
                                     placeholder="Alamat lengkap sesuai KTP"
                                 />
                             </div>
@@ -340,7 +340,7 @@ export default function ProfileCompletionPage() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold shadow-lg shadow-orange-500/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
                             >
                                 {loading ? 'Menyimpan...' : (
                                     <>
@@ -355,7 +355,7 @@ export default function ProfileCompletionPage() {
 
                 {/* Help Link */}
                 <div className="flex justify-center pb-4 sm:pb-8">
-                    <a className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 hover:text-blue-600 transition-colors" href="#">
+                    <a className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 hover:text-orange-600 transition-colors" href="#">
                         <svg className="w-4 h-4 sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
                             <path d="M12 16V12M12 8H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

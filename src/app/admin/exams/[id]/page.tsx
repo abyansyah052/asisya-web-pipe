@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download } from 'lucide-react';
 
 export default function ExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -14,6 +14,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
     const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [examId, setExamId] = useState<string>('');
+    const [downloading, setDownloading] = useState(false);
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
@@ -49,6 +50,51 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
             return admin && admin.candidate_ids.includes(r.user_id);
         });
 
+    // Download Excel function
+    const handleDownload = async (filterType: 'all' | 'assigned' | 'selected') => {
+        setDownloading(true);
+        try {
+            let url = `/api/admin/exams/${examId}/download?filter=all`;
+            if (filterType === 'assigned' && assignedCandidates.length > 0) {
+                url = `/api/admin/exams/${examId}/download?filter=assigned`;
+            } else if (filterType === 'selected' && selectedAdminId !== null) {
+                url = `/api/admin/exams/${examId}/download?filter=assigned&psychologistId=${selectedAdminId}`;
+            }
+
+            const response = await fetch(url);
+            if (response.ok) {
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+
+                let filename = `Hasil_${exam?.title || 'Ujian'}`;
+                if (filterType === 'assigned') {
+                    filename += '_Bagian_Saya';
+                } else if (filterType === 'selected' && selectedAdminId !== null) {
+                    const admin = adminList.find(a => a.admin_id === selectedAdminId);
+                    filename += `_${admin?.admin_name || 'Admin'}`;
+                } else {
+                    filename += '_Semua';
+                }
+                filename += '.xlsx';
+
+                a.download = filename.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+            } else {
+                alert('Gagal mengunduh file');
+            }
+        } catch (error) {
+            console.error('Download error:', error);
+            alert('Terjadi kesalahan saat mengunduh');
+        } finally {
+            setDownloading(false);
+        }
+    };
+
     if (loading) return <div className="p-8">Loading...</div>;
 
     return (
@@ -65,14 +111,50 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                 </div>
 
                 <header className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
-                    <h1 className="text-xl sm:text-2xl font-bold text-gray-800">{exam?.title}</h1>
-                    <p className="text-gray-500 mt-1 text-sm sm:text-base">Hasil Peserta Ujian</p>
-                    {isAssignedOnly && (
-                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                            <Users size={14} />
-                            Menampilkan {assignedCandidates.length} kandidat yang ditugaskan ke Anda
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">{exam?.title}</h1>
+                            <p className="text-gray-500 mt-1 text-sm sm:text-base">Hasil Peserta Ujian</p>
+                            {isAssignedOnly && (
+                                <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                                    <Users size={14} />
+                                    Menampilkan {displayedResults.length} hasil dari {assignedCandidates.length} kandidat yang ditugaskan
+                                </div>
+                            )}
                         </div>
-                    )}
+
+                        {/* Download Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            {selectedAdminId !== null && (
+                                <button
+                                    onClick={() => handleDownload('selected')}
+                                    disabled={downloading}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium disabled:opacity-50"
+                                >
+                                    <Download size={16} />
+                                    {downloading ? 'Mengunduh...' : 'Download Filter Ini'}
+                                </button>
+                            )}
+                            {isAssignedOnly && (
+                                <button
+                                    onClick={() => handleDownload('assigned')}
+                                    disabled={downloading}
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+                                >
+                                    <Download size={16} />
+                                    {downloading ? 'Mengunduh...' : 'Download Ditugaskan'}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => handleDownload('all')}
+                                disabled={downloading}
+                                className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                <Download size={16} />
+                                {downloading ? 'Mengunduh...' : 'Download Semua'}
+                            </button>
+                        </div>
+                    </div>
                 </header>
 
                 {/* Stats Cards */}
@@ -98,11 +180,10 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                     <div className="mb-6 flex items-center gap-3">
                         <button
                             onClick={() => setSelectedAdminId(null)}
-                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                selectedAdminId === null
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${selectedAdminId === null
                                     ? 'bg-blue-800 text-white shadow-md'
                                     : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`}
+                                }`}
                         >
                             Semua ({results.length})
                         </button>
@@ -144,7 +225,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                         <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
                                             {selectedAdminId !== null
                                                 ? 'Belum ada kandidat dari admin ini yang menyelesaikan ujian.'
-                                                : isAssignedOnly 
+                                                : isAssignedOnly
                                                     ? 'Belum ada kandidat Anda yang menyelesaikan ujian ini.'
                                                     : 'Belum ada peserta yang menyelesaikan ujian ini.'
                                             }
@@ -154,9 +235,9 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     <tr key={res.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-2">
                                             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                                {res.student.charAt(0)}
+                                                {res.student ? res.student.charAt(0).toUpperCase() : '?'}
                                             </div>
-                                            {res.student}
+                                            {res.student || 'Kandidat Tidak Dikenal'}
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 text-sm">
                                             {new Date(res.end_time).toLocaleString()}
@@ -204,7 +285,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                             <div className="p-8 text-center text-gray-500 text-sm">
                                 {selectedAdminId !== null
                                     ? 'Belum ada kandidat dari admin ini yang menyelesaikan ujian.'
-                                    : isAssignedOnly 
+                                    : isAssignedOnly
                                         ? 'Belum ada kandidat Anda yang menyelesaikan ujian ini.'
                                         : 'Belum ada peserta yang menyelesaikan ujian ini.'
                                 }
@@ -213,13 +294,13 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                             <div key={res.id} className="p-4 hover:bg-gray-50 active:bg-gray-100">
                                 <div className="flex items-start gap-3 mb-3">
                                     <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
-                                        {res.student.charAt(0)}
+                                        {(res.student || 'U').charAt(0)}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-gray-900 truncate">{res.student}</div>
+                                        <div className="font-semibold text-gray-900 truncate">{res.student || 'Unknown'}</div>
                                         <div className="text-xs text-gray-500 mt-0.5">
-                                            {new Date(res.end_time).toLocaleDateString('id-ID', { 
-                                                day: 'numeric', 
+                                            {new Date(res.end_time).toLocaleDateString('id-ID', {
+                                                day: 'numeric',
                                                 month: 'short',
                                                 hour: '2-digit',
                                                 minute: '2-digit'
@@ -231,7 +312,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                         <div className="text-[10px] text-gray-400">Nilai</div>
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex gap-2 mb-3">
                                     <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
                                         <div className="text-xs text-green-600 font-medium">Benar</div>

@@ -30,25 +30,79 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     const [attemptId, setAttemptId] = useState<number | null>(null);
     const [examId, setExamId] = useState<string>('');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [alertModal, setAlertModal] = useState<{show: boolean, message: string}>({show: false, message: ''});
+    const [alertModal, setAlertModal] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
     const [confirmModal, setConfirmModal] = useState(false);
     const [examStarted, setExamStarted] = useState(false);
     const [displayMode, setDisplayMode] = useState<DisplayMode>('per_page');
     const [showNavigator, setShowNavigator] = useState(false);
     const intervalRef = useRef<NodeJS.Timeout>(undefined);
-    const questionRefs = useRef<{[key: number]: HTMLDivElement | null}>({});
+    const questionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
     }, [params]);
 
+    // ✅ Save answers to server - IMMEDIATE save with throttle (not debounce)
+    const lastSavedRef = useRef<string>('');
+    const isSavingRef = useRef(false);
+
+    // Save function
+    const saveAnswersToServer = useCallback(async (currentAnswers: { [key: number]: number }) => {
+        if (!examId || !attemptId || isSavingRef.current) return;
+
+        const answersStr = JSON.stringify(currentAnswers);
+        if (answersStr === lastSavedRef.current || answersStr === '{}') return;
+
+        isSavingRef.current = true;
+        try {
+            const res = await fetch(`/api/candidate/exam/${examId}/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ attemptId, answers: currentAnswers })
+            });
+            if (res.ok) {
+                lastSavedRef.current = answersStr;
+                console.log('Answers saved to server');
+            }
+        } catch (e) {
+            console.error('Failed to save answers:', e);
+        } finally {
+            isSavingRef.current = false;
+        }
+        // Also save to localStorage as backup
+        localStorage.setItem(`exam_${examId}_${attemptId}`, answersStr);
+    }, [examId, attemptId]);
+
+    // ✅ Save immediately when answers change (with 1 second throttle)
     useEffect(() => {
         if (!examId || !attemptId) return;
+
+        const answersStr = JSON.stringify(answers);
+        if (answersStr === lastSavedRef.current || answersStr === '{}') return;
+
+        // Save after 1 second to batch rapid changes
         const timer = setTimeout(() => {
-            localStorage.setItem(`exam_${examId}_${attemptId}`, JSON.stringify(answers));
+            saveAnswersToServer(answers);
         }, 1000);
+
         return () => clearTimeout(timer);
-    }, [answers, examId, attemptId]);
+    }, [answers, examId, attemptId, saveAnswersToServer]);
+
+    // ✅ Save before page unload (refresh, close, navigate away)
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (examId && attemptId && Object.keys(answers).length > 0) {
+                // Use sendBeacon for reliable save before unload
+                const data = JSON.stringify({ attemptId, answers });
+                navigator.sendBeacon(`/api/candidate/exam/${examId}/save`, data);
+                // Also save to localStorage
+                localStorage.setItem(`exam_${examId}_${attemptId}`, JSON.stringify(answers));
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [examId, attemptId, answers]);
 
     useEffect(() => {
         if (!examId) return;
@@ -57,11 +111,28 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                 const res = await fetch(`/api/candidate/exam/${examId}/questions`);
                 if (res.ok) {
                     const data = await res.json();
+
+                    // ✅ Use server-calculated remaining time (persists across refresh)
+                    const remaining = data.remainingSeconds ?? data.exam.duration * 60;
+
+                    // ✅ If time expired, redirect immediately (backend will auto-submit)
+                    if (remaining <= 0) {
+                        alert("Waktu ujian sudah habis");
+                        router.push('/candidate/dashboard');
+                        return;
+                    }
+
                     setExam(data.exam);
                     setQuestions(data.questions);
                     setAttemptId(data.attemptId);
-                    setTimeLeft(data.exam.duration * 60);
+                    setTimeLeft(remaining);
                     setDisplayMode(data.exam.display_mode || 'per_page');
+
+                    // ✅ Load saved answers from server (persist across reconnect)
+                    if (data.savedAnswers && Object.keys(data.savedAnswers).length > 0) {
+                        setAnswers(data.savedAnswers);
+                    }
+
                     setExamStarted(true);
                 } else {
                     alert("Failed to load exam or already completed.");
@@ -92,10 +163,10 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                 setTimeout(() => router.push('/candidate/dashboard'), 2000);
             } else {
                 const error = await res.json();
-                setAlertModal({show: true, message: error.error || 'Gagal mengumpulkan ujian'});
+                setAlertModal({ show: true, message: error.error || 'Gagal mengumpulkan ujian' });
             }
         } catch (e) {
-            setAlertModal({show: true, message: 'Terjadi kesalahan saat mengumpulkan ujian'});
+            setAlertModal({ show: true, message: 'Terjadi kesalahan saat mengumpulkan ujian' });
         }
     }, [attemptId, answers, examId, router]);
 
@@ -112,10 +183,10 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                 setTimeout(() => router.push('/candidate/dashboard'), 2000);
             } else {
                 const error = await res.json();
-                setAlertModal({show: true, message: error.error || 'Gagal mengumpulkan ujian'});
+                setAlertModal({ show: true, message: error.error || 'Gagal mengumpulkan ujian' });
             }
         } catch (e) {
-            setAlertModal({show: true, message: 'Terjadi kesalahan saat mengumpulkan ujian'});
+            setAlertModal({ show: true, message: 'Terjadi kesalahan saat mengumpulkan ujian' });
         }
     }, [attemptId, answers, examId, router]);
 
@@ -166,12 +237,12 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
         setShowNavigator(false);
     }, []);
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
-    if (!examStarted) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div></div>;
+    if (!examStarted) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div></div>;
 
     const currentQ = questions[currentIdx];
 
-    // Question Navigator Component
+    // Question Navigator Component - 6 columns for better visibility
     const QuestionNavigator = ({ isFloating = false }: { isFloating?: boolean }) => (
         <div className={`${isFloating ? '' : 'p-4 sm:p-6'}`}>
             {!isFloating && (
@@ -180,13 +251,13 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-yellow-400 rounded-full"></div> Ditandai</div>
                 </div>
             )}
-            <div className={`grid ${isFloating ? 'grid-cols-8 sm:grid-cols-10' : 'grid-cols-5'} gap-1.5 sm:gap-2`}>
+            <div className={`grid ${isFloating ? 'grid-cols-8 sm:grid-cols-10' : 'grid-cols-6'} gap-1.5 sm:gap-2`}>
                 {questions.map((q, i) => {
                     const isAnswered = answers[q.id] !== undefined;
                     const isReview = reviewList.includes(q.id);
                     const isCurrent = i === currentIdx;
-                    let baseClass = "h-8 w-full sm:h-10 rounded-lg flex items-center justify-center font-medium text-xs sm:text-sm transition-all ";
-                    if (isCurrent) baseClass += "ring-2 ring-blue-600 ring-offset-1 bg-blue-600 text-white ";
+                    let baseClass = "h-8 w-full sm:h-9 rounded-lg flex items-center justify-center font-medium text-xs sm:text-sm transition-all ";
+                    if (isCurrent) baseClass += "ring-2 ring-orange-600 ring-offset-1 bg-orange-600 text-white ";
                     else if (isReview) baseClass += "bg-yellow-400 text-white ";
                     else if (isAnswered) baseClass += "bg-green-500 text-white ";
                     else baseClass += "bg-gray-100 text-gray-600 hover:bg-gray-200 ";
@@ -213,7 +284,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         </div>
                         <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Perhatian</h3>
                         <p className="text-gray-600 mb-6 text-sm sm:text-base">{alertModal.message}</p>
-                        <button onClick={() => setAlertModal({show: false, message: ''})} className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">OK</button>
+                        <button onClick={() => setAlertModal({ show: false, message: '' })} className="w-full py-3 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700">OK</button>
                     </div>
                 </div>
             )}
@@ -228,9 +299,9 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Ujian Berhasil Dikumpulkan!</h2>
                         <p className="text-gray-600 mb-6 text-sm sm:text-base">Hasil ujian Anda sedang diproses.</p>
                         <div className="flex gap-2 items-center justify-center">
-                            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0s'}}></div>
-                            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                     </div>
                 </div>
@@ -293,17 +364,17 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             {Object.keys(answers).length}/{questions.length} terjawab
                         </div>
                     </div>
-                    <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-blue-50 text-blue-700'}`}>
+                    <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-orange-50 text-orange-700'}`}>
                         <Clock size={16} className="sm:hidden" />
-                        <Clock size={20} className="hidden sm:block" /> 
+                        <Clock size={20} className="hidden sm:block" />
                         {formatTime(timeLeft)}
                     </div>
                 </header>
 
                 {/* Main Content */}
                 <div className="flex flex-1 mt-14 sm:mt-16">
-                    {/* Questions Area */}
-                    <main className="flex-1 overflow-auto pb-24 lg:pb-6">
+                    {/* Questions Area - add right padding for fixed sidebar on desktop */}
+                    <main className="flex-1 overflow-auto pb-24 lg:pb-6 lg:mr-80">
                         {displayMode === 'scroll' ? (
                             /* SCROLL MODE */
                             <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
@@ -314,14 +385,13 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                         <div
                                             key={q.id}
                                             ref={(el) => { questionRefs.current[q.id] = el; }}
-                                            className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${
-                                                isReviewed ? 'border-yellow-400 bg-yellow-50/30' : isAnswered ? 'border-green-400 bg-green-50/30' : 'border-slate-200'
-                                            }`}
+                                            className={`bg-white rounded-2xl shadow-sm border-2 transition-all ${isReviewed ? 'border-yellow-400 bg-yellow-50/30' : isAnswered ? 'border-green-400 bg-green-50/30' : 'border-slate-200'
+                                                }`}
                                         >
                                             {/* Question Header */}
                                             <div className="flex justify-between items-center px-4 sm:px-6 py-3 border-b border-slate-100">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                                    <span className="bg-gradient-to-r from-orange-600 to-amber-600 text-white px-3 py-1 rounded-full text-sm font-bold">
                                                         {idx + 1}
                                                     </span>
                                                     {isAnswered && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">✓ Terjawab</span>}
@@ -345,18 +415,16 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                                             <label
                                                                 key={opt.id}
                                                                 onClick={() => handleSelectOption(q.id, opt.id)}
-                                                                className={`flex items-center p-3 sm:p-4 rounded-xl cursor-pointer transition-all border-2 ${
-                                                                    isSelected
-                                                                        ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                                                className={`flex items-center p-3 sm:p-4 rounded-xl cursor-pointer transition-all border-2 ${isSelected
+                                                                        ? 'border-orange-500 bg-orange-50 shadow-sm'
                                                                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                                                }`}
+                                                                    }`}
                                                             >
-                                                                <div className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center shrink-0 ${
-                                                                    isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
-                                                                }`}>
+                                                                <div className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center shrink-0 ${isSelected ? 'border-orange-500 bg-orange-500' : 'border-slate-300'
+                                                                    }`}>
                                                                     {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
                                                                 </div>
-                                                                <span className={`text-sm sm:text-base ${isSelected ? 'text-blue-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
+                                                                <span className={`text-sm sm:text-base ${isSelected ? 'text-orange-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
                                                             </label>
                                                         );
                                                     })}
@@ -371,7 +439,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             <div className="max-w-3xl mx-auto p-4 sm:p-6 md:p-10">
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                                     {/* Question Header */}
-                                    <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                                    <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-amber-600 text-white">
                                         <span className="font-bold text-sm sm:text-base">Soal {currentIdx + 1} dari {questions.length}</span>
                                         <button
                                             onClick={() => toggleReview(currentQ.id)}
@@ -391,18 +459,16 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                                     <label
                                                         key={opt.id}
                                                         onClick={() => handleSelectOption(currentQ.id, opt.id)}
-                                                        className={`flex items-center p-4 sm:p-5 rounded-xl cursor-pointer transition-all border-2 ${
-                                                            isSelected
-                                                                ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                        className={`flex items-center p-4 sm:p-5 rounded-xl cursor-pointer transition-all border-2 ${isSelected
+                                                                ? 'border-orange-500 bg-orange-50 shadow-md'
                                                                 : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                                        }`}
+                                                            }`}
                                                     >
-                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mr-4 flex items-center justify-center shrink-0 ${
-                                                            isSelected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
-                                                        }`}>
+                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mr-4 flex items-center justify-center shrink-0 ${isSelected ? 'border-orange-500 bg-orange-500' : 'border-slate-300'
+                                                            }`}>
                                                             {isSelected && <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-white rounded-full"></div>}
                                                         </div>
-                                                        <span className={`text-sm sm:text-base md:text-lg ${isSelected ? 'text-blue-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
+                                                        <span className={`text-sm sm:text-base md:text-lg ${isSelected ? 'text-orange-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
                                                     </label>
                                                 );
                                             })}
@@ -413,14 +479,14 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         )}
                     </main>
 
-                    {/* Desktop Sidebar - For per_page mode */}
+                    {/* Desktop Sidebar - For per_page mode - STICKY */}
                     {displayMode === 'per_page' && (
-                        <aside className="hidden lg:flex lg:w-80 bg-white border-l flex-col">
+                        <aside className="hidden lg:flex lg:w-80 bg-white border-l flex-col fixed right-0 top-16 bottom-0 z-20">
                             <div className="p-6 border-b">
                                 <h3 className="font-bold text-gray-800 mb-1">Progress Anda</h3>
                                 <div className="flex items-center gap-3">
                                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-green-500 transition-all" style={{width: `${progress}%`}}></div>
+                                        <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }}></div>
                                     </div>
                                     <span className="text-sm font-medium text-gray-600">{Math.round(progress)}%</span>
                                 </div>
@@ -441,6 +507,29 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             </div>
                         </aside>
                     )}
+
+                    {/* Desktop Sidebar - For scroll mode - STICKY */}
+                    {displayMode === 'scroll' && (
+                        <aside className="hidden lg:flex lg:w-80 bg-white border-l flex-col fixed right-0 top-16 bottom-0 z-20">
+                            <div className="p-6 border-b">
+                                <h3 className="font-bold text-gray-800 mb-1">Progress Anda</h3>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }}></div>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-600">{Math.round(progress)}%</span>
+                                </div>
+                            </div>
+                            <div className="flex-1 overflow-auto">
+                                <QuestionNavigator />
+                            </div>
+                            <div className="p-4 border-t bg-slate-50">
+                                <button onClick={() => submitExam(false)} className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold">
+                                    <Save size={18} /> Kumpulkan Ujian
+                                </button>
+                            </div>
+                        </aside>
+                    )}
                 </div>
 
                 {/* Mobile/Tablet Floating Bottom Bar */}
@@ -449,11 +538,11 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         {/* Progress Bar */}
                         <div className="flex items-center gap-3 mb-2">
                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500 transition-all" style={{width: `${progress}%`}}></div>
+                                <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }}></div>
                             </div>
                             <span className="text-xs font-medium text-gray-500">{Object.keys(answers).length}/{questions.length}</span>
                         </div>
-                        
+
                         {/* Action Buttons */}
                         <div className="flex gap-2">
                             {displayMode === 'per_page' && (
@@ -478,7 +567,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                 </button>
                             )}
                             <button onClick={() => submitExam(false)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-green-600 text-white rounded-xl font-bold active:bg-green-700">
-                                <Save size={18} /> <span className="hidden sm:inline">Kumpulkan</span>
+                                <Save size={18} /> Kumpulkan
                             </button>
                         </div>
                     </div>

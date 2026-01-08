@@ -24,19 +24,19 @@ export async function POST(req: NextRequest) {
         try {
             await client.query('BEGIN');
 
-            // Delete existing assignments for this exam
+            // Delete existing assignments for this exam from candidate_groups
             await client.query(
-                'DELETE FROM exam_assessors WHERE exam_id = $1',
+                'DELETE FROM candidate_groups WHERE exam_id = $1',
                 [examId]
             );
 
-            // Insert new assignments
+            // Insert new assignments into candidate_groups
             for (const assignment of assignments) {
-                if (assignment.psychologistId) {
+                if (assignment.psychologistId && assignment.candidateId) {
                     await client.query(
-                        `INSERT INTO exam_assessors (exam_id, user_id, assessor_id, admin_id)
-                         VALUES ($1, $2, $3, $4)
-                         ON CONFLICT DO NOTHING`,
+                        `INSERT INTO candidate_groups (exam_id, candidate_id, assessor_id, assigned_by, created_at)
+                         VALUES ($1, $2, $3, $4, NOW())
+                         ON CONFLICT (exam_id, candidate_id) DO UPDATE SET assessor_id = $3, assigned_by = $4`,
                         [examId, assignment.candidateId, assignment.psychologistId, session.id]
                     );
                 }

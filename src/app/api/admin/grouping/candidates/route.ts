@@ -26,18 +26,20 @@ export async function GET(req: NextRequest) {
             // Get all candidates who:
             // 1. Have a candidate_code for this exam
             // 2. Have attempted this exam
-            // 3. Are assigned via exam_assessors
+            // 3. Are assigned via candidate_groups (with assessor_id, NOT psychologist_id)
+            // ✅ Use COALESCE to prefer user_profiles.full_name > users.full_name > username
             const result = await client.query(
-                `SELECT DISTINCT u.id, u.username, u.full_name,
-                        COALESCE(ea.assessor_id, cg.psychologist_id) as assigned_to
+                `SELECT DISTINCT u.id, u.username, 
+                        COALESCE(up.full_name, u.full_name, u.username) as full_name,
+                        COALESCE(cg.assessor_id, NULL) as assigned_to
                  FROM users u
+                 LEFT JOIN user_profiles up ON up.user_id = u.id
                  LEFT JOIN candidate_codes cc ON cc.candidate_id = u.id AND cc.exam_id = $1
                  LEFT JOIN exam_attempts et ON et.user_id = u.id AND et.exam_id = $1
-                 LEFT JOIN exam_assessors ea ON ea.user_id = u.id AND ea.exam_id = $1
                  LEFT JOIN candidate_groups cg ON cg.candidate_id = u.id AND cg.exam_id = $1
                  WHERE u.role = 'candidate'
-                   AND (cc.id IS NOT NULL OR et.id IS NOT NULL OR ea.id IS NOT NULL OR cg.id IS NOT NULL)
-                 ORDER BY u.username`,
+                   AND (cc.id IS NOT NULL OR et.id IS NOT NULL OR cg.id IS NOT NULL)
+                 ORDER BY COALESCE(up.full_name, u.full_name, u.username)`,
                 [examId]
             );
 

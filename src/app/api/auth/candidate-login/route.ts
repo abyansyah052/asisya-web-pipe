@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
             if (codeData.used_at) {
                 const usedAt = new Date(codeData.used_at);
                 const reuseDeadline = new Date(usedAt.getTime() + (REUSE_WINDOW_DAYS * 24 * 60 * 60 * 1000));
-                
+
                 if (new Date() > reuseDeadline) {
                     return NextResponse.json(
                         { error: 'Kode sudah mencapai batas penggunaan dan melewati masa tenggang 2 hari' },
@@ -92,8 +92,8 @@ export async function POST(req: NextRequest) {
         let username: string;
 
         // Check if within reuse window (don't increment usage if already maxed)
-        const isReuseWithinWindow = codeData.max_uses && 
-            codeData.current_uses >= codeData.max_uses && 
+        const isReuseWithinWindow = codeData.max_uses &&
+            codeData.current_uses >= codeData.max_uses &&
             codeData.used_at;
 
         if (codeData.candidate_id) {
@@ -113,16 +113,23 @@ export async function POST(req: NextRequest) {
             // Create new candidate - single transaction
             const candidateUsername = `candidate_${normalizedCode.toLowerCase()}`;
 
+            // ✅ Extract candidate name from metadata if available (from imported codes)
+            let candidateName: string | null = null;
+            if (codeData.metadata && typeof codeData.metadata === 'object') {
+                candidateName = codeData.metadata.candidate_name || null;
+            }
+
             const newUser = await pool.query(
-                `INSERT INTO users (username, email, password_hash, role, organization_id, profile_completed, registration_type)
-                 VALUES ($1, $2, $3, $4, $5, false, 'candidate_code')
+                `INSERT INTO users (username, email, password_hash, role, organization_id, profile_completed, registration_type, full_name)
+                 VALUES ($1, $2, $3, $4, $5, false, 'candidate_code', $6)
                  RETURNING id, username`,
                 [
                     candidateUsername,
                     `${candidateUsername}@candidate.local`,
                     'CANDIDATE_NO_PASSWORD',  // Candidates login via code, not password
                     ROLES.CANDIDATE,
-                    codeData.admin_id
+                    codeData.admin_id,
+                    candidateName  // ✅ Set full_name from import metadata
                 ]
             );
 

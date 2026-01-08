@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, UserCog, LogOut, ClipboardList, Building2, BarChart3, Settings, KeyRound } from 'lucide-react';
+import { Users, UserCog, LogOut, ClipboardList, Building2, BarChart3, Settings, KeyRound, AlertTriangle, X } from 'lucide-react';
 
 interface DashboardStats {
     totalPsychologists: number;
@@ -32,6 +32,13 @@ export default function AdminOwnerDashboard() {
     const [quota, setQuota] = useState<Quota | null>(null);
     const [loading, setLoading] = useState(true);
     const [orgName, setOrgName] = useState('');
+    const [showDevModal, setShowDevModal] = useState(false);
+    const [devModalFeature, setDevModalFeature] = useState('');
+
+    const openDevModal = (feature: string) => {
+        setDevModalFeature(feature);
+        setShowDevModal(true);
+    };
 
     useEffect(() => {
         fetchStats();
@@ -206,10 +213,10 @@ export default function AdminOwnerDashboard() {
                     {/* Psychologist Management Card */}
                     <div
                         onClick={() => router.push('/admin/psychologists')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group flex flex-col"
                     >
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
+                            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors shrink-0">
                                 <UserCog className="text-blue-800 group-hover:text-white transition-colors" size={32} />
                             </div>
                             <div>
@@ -217,10 +224,10 @@ export default function AdminOwnerDashboard() {
                                 <p className="text-sm text-gray-500">Tambah, edit, dan hapus psikolog</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 mb-4 flex-1">
                             Kelola tim psikolog di organisasi Anda. Tambahkan psikolog baru atau atur akses mereka.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-auto">
                             Buka Manajemen Psikolog
                         </button>
                     </div>
@@ -228,10 +235,10 @@ export default function AdminOwnerDashboard() {
                     {/* Candidate Grouping Card */}
                     <div
                         onClick={() => router.push('/admin/grouping')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group flex flex-col"
                     >
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
+                            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors shrink-0">
                                 <ClipboardList className="text-blue-800 group-hover:text-white transition-colors" size={32} />
                             </div>
                             <div>
@@ -239,10 +246,10 @@ export default function AdminOwnerDashboard() {
                                 <p className="text-sm text-gray-500">Assign kandidat ke psikolog</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 mb-4 flex-1">
                             Bagi kandidat ke psikolog untuk setiap ujian. Gunakan fitur auto-assign atau atur manual.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-auto">
                             Buka Pembagian Kandidat
                         </button>
                     </div>
@@ -250,10 +257,10 @@ export default function AdminOwnerDashboard() {
                     {/* Candidate Codes Card */}
                     <div
                         onClick={() => router.push('/admin/codes')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group flex flex-col"
                     >
                         <div className="flex items-center gap-4 mb-4">
-                            <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center group-hover:bg-purple-800 transition-colors">
+                            <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center group-hover:bg-purple-800 transition-colors shrink-0">
                                 <KeyRound className="text-purple-800 group-hover:text-white transition-colors" size={32} />
                             </div>
                             <div>
@@ -261,17 +268,17 @@ export default function AdminOwnerDashboard() {
                                 <p className="text-sm text-gray-500">Generate dan hapus kode kandidat</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 mb-4 flex-1">
                             Buat kode akses untuk kandidat, kelola kode yang sudah ada, dan hapus kandidat jika diperlukan.
                         </p>
-                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-auto">
                             Kelola Kode Akses
                         </button>
                     </div>
 
-                    {/* Reports Card */}
+                    {/* Reports Card - In Development */}
                     <div
-                        onClick={() => router.push('/admin/reports')}
+                        onClick={() => openDevModal('Laporan')}
                         className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
                     >
                         <div className="flex items-center gap-4 mb-4">
@@ -291,9 +298,9 @@ export default function AdminOwnerDashboard() {
                         </button>
                     </div>
 
-                    {/* Organization Settings Card */}
+                    {/* Organization Settings Card - In Development */}
                     <div
-                        onClick={() => router.push('/admin/settings')}
+                        onClick={() => openDevModal('Pengaturan Konfigurasi Organisasi')}
                         className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
                     >
                         <div className="flex items-center gap-4 mb-4">
@@ -314,6 +321,35 @@ export default function AdminOwnerDashboard() {
                     </div>
                 </div>
             </main>
+
+            {/* Development Modal */}
+            {showDevModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
+                        <button 
+                            onClick={() => setShowDevModal(false)}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                        >
+                            <X size={24} />
+                        </button>
+                        <div className="text-center">
+                            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <AlertTriangle className="w-8 h-8 text-yellow-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Fitur Dalam Pengembangan</h3>
+                            <p className="text-gray-600 mb-6">
+                                Fitur <strong>{devModalFeature}</strong> sedang dalam tahap pengembangan dan akan segera tersedia. Terima kasih atas kesabaran Anda!
+                            </p>
+                            <button 
+                                onClick={() => setShowDevModal(false)}
+                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                            >
+                                Mengerti
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

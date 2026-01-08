@@ -51,7 +51,9 @@ export default function AdminLoginPage() {
         >
           <div className="relative z-10 flex flex-col gap-5">
             <div className="flex items-center gap-3 mb-2">
-              <img src="/asisya.png" alt="Asisya" className="h-12 w-auto brightness-0 invert" />
+              <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center p-2 overflow-hidden">
+                <img src="/asisya.png" alt="Asisya" className="h-full w-full object-contain" />
+              </div>
               <span className="text-xl font-bold">Asisya Consulting</span>
             </div>
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
@@ -71,7 +73,9 @@ export default function AdminLoginPage() {
         <div className="w-full lg:w-1/2 bg-white p-8 lg:p-16 flex flex-col justify-center">
           {/* Logo for mobile */}
           <div className="flex lg:hidden items-center gap-3 mb-8">
-            <img src="/asisya.png" alt="Asisya" className="h-10 w-auto" />
+            <div className="h-12 w-12 rounded-xl border border-blue-200 flex items-center justify-center p-1.5 overflow-hidden">
+              <img src="/asisya.png" alt="Asisya" className="h-full w-full object-contain" />
+            </div>
             <h2 className="text-xl font-bold text-slate-900">Asisya Consulting</h2>
           </div>
 

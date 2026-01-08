@@ -11,6 +11,8 @@ interface Exam {
     status: string;
     description: string;
     question_count: number;
+    assigned_candidates: number;
+    is_assigned_to_me: boolean;
 }
 
 export default function PsychologistDashboard() {
@@ -222,7 +224,7 @@ export default function PsychologistDashboard() {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-sm font-medium mb-1">Total Ujian</div>
                         <div className="text-3xl font-bold text-gray-800">{exams.length}</div>
@@ -230,6 +232,12 @@ export default function PsychologistDashboard() {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-sm font-medium mb-1">Total Peserta</div>
                         <div className="text-3xl font-bold text-gray-800">{totalCandidates}</div>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <div className="text-gray-500 text-sm font-medium mb-1">Ditugaskan ke Anda</div>
+                        <div className="text-3xl font-bold text-blue-600">
+                            {exams.filter(e => e.is_assigned_to_me).length}
+                        </div>
                     </div>
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                         <div className="text-gray-500 text-sm font-medium mb-1">Ujian Aktif</div>
@@ -294,6 +302,7 @@ export default function PsychologistDashboard() {
                                     <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
                                         <th className="px-6 py-3 font-medium">Judul Ujian</th>
                                         <th className="px-6 py-3 font-medium">Status</th>
+                                        <th className="px-6 py-3 font-medium">Ditugaskan</th>
                                         <th className="px-6 py-3 font-medium">Jumlah Soal</th>
                                         <th className="px-6 py-3 font-medium text-right">Aksi</th>
                                     </tr>
@@ -301,12 +310,24 @@ export default function PsychologistDashboard() {
                                 <tbody className="divide-y divide-gray-100">
                                     {exams.map((exam) => (
                                         <tr key={exam.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 font-medium text-gray-800">{exam.title}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-800">{exam.title}</div>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${exam.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                                                     }`}>
                                                     {exam.status}
                                                 </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {exam.is_assigned_to_me ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                        <Users size={12} />
+                                                        {exam.assigned_candidates} kandidat
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs">-</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-gray-600">{exam.question_count}</td>
                                             <td className="px-6 py-4 text-right">

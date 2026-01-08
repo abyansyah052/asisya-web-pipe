@@ -18,7 +18,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         if (!candidateId) return;
         const fetchCandidate = async () => {
             try {
-                const res = await fetch(`/api/superadmin/users/${candidateId}`);
+                const res = await fetch(`/api/admin/candidates/${candidateId}`);
                 if (res.ok) {
                     const data = await res.json();
                     setCandidate(data);
@@ -92,7 +92,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">Nomor Peserta</p>
-                                    <p className="text-sm font-semibold text-gray-800">{candidate.profile.nomor_peserta || '-'}</p>
+                                    <p className="text-sm font-semibold text-gray-800">{candidate.nomor_peserta || '-'}</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
@@ -111,7 +111,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                 <div>
                                     <p className="text-xs text-gray-500 mb-1">Tanggal Lahir</p>
                                     <p className="text-sm font-semibold text-gray-800">
-                                        {candidate.profile.tanggal_lahir 
+                                        {candidate.profile.tanggal_lahir
                                             ? new Date(candidate.profile.tanggal_lahir).toLocaleDateString('id-ID', {
                                                 day: 'numeric',
                                                 month: 'long',

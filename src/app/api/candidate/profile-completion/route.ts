@@ -1,150 +1,142 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { query } from '@/lib/db';
 import { cookies } from 'next/headers';
-import pool from '@/lib/db';
-import { decrypt } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 
-export async function POST(req: Request) {
+// GET - Fetch existing profile data
+export async function GET() {
     try {
         const cookieStore = await cookies();
         const sessionCookie = cookieStore.get('user_session');
         
-        if (!sessionCookie) {
+        const user = await getSession(sessionCookie?.value);
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const session = await decrypt(sessionCookie.value);
-        if (!session) {
-            return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+        // ✅ Fetch profile data from user_profiles table (not users)
+        const profiles = await query<any>(
+            `SELECT up.full_name, up.tanggal_lahir, up.jenis_kelamin, up.pendidikan_terakhir, 
+                    up.pekerjaan, up.lokasi_test, up.alamat_ktp, up.nik, up.marital_status, up.foto,
+                    u.profile_completed
+             FROM users u
+             LEFT JOIN user_profiles up ON u.id = up.user_id
+             WHERE u.id = $1`,
+            [user.id]
+        );
+
+        if (profiles.length === 0) {
+            return NextResponse.json({ profile: null });
         }
-        const userId = session.id;
+
+        return NextResponse.json({ profile: profiles[0] });
+    } catch (error) {
+        console.error('Profile fetch error:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+// POST - Save/update profile data
+export async function POST(req: NextRequest) {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        
+        const user = await getSession(sessionCookie?.value);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         const body = await req.json();
-        
-        // Support both snake_case (frontend) and camelCase field names
-        const fullName = body.full_name || body.fullName;
-        const tanggalLahir = body.tanggal_lahir || body.tanggalLahir;
-        const jenisKelamin = body.jenis_kelamin || body.jenisKelamin;
-        const pendidikanTerakhir = body.pendidikan_terakhir || body.pendidikanTerakhir;
-        const pekerjaan = body.pekerjaan;
-        const lokasiTest = body.lokasi_test || body.lokasiTest;
-        const alamatKtp = body.alamat_ktp || body.alamatKtp;
-        const nik = body.nik;
-        const maritalStatus = body.marital_status || body.maritalStatus;
-        // Photo is optional
-        const foto = body.foto || body.photo || null;
+        const {
+            full_name,
+            tanggal_lahir,
+            jenis_kelamin,
+            pendidikan_terakhir,
+            pekerjaan,
+            lokasi_test,
+            alamat_ktp,
+            nik,
+            marital_status,
+            foto
+        } = body;
 
-        // Validation - required fields
-        if (!fullName || !tanggalLahir || !jenisKelamin || 
-            !pendidikanTerakhir || !lokasiTest || !alamatKtp || !nik || !maritalStatus) {
-            return NextResponse.json({ 
-                error: 'Semua field wajib diisi (kecuali foto dan pekerjaan)',
-                missing: {
-                    fullName: !fullName,
-                    tanggalLahir: !tanggalLahir,
-                    jenisKelamin: !jenisKelamin,
-                    pendidikanTerakhir: !pendidikanTerakhir,
-                    lokasiTest: !lokasiTest,
-                    alamatKtp: !alamatKtp,
-                    nik: !nik,
-                    maritalStatus: !maritalStatus
-                }
-            }, { status: 400 });
+        // Validate required fields
+        if (!full_name || !tanggal_lahir || !alamat_ktp || !nik || !marital_status) {
+            return NextResponse.json({ error: 'Field wajib harus diisi' }, { status: 400 });
         }
 
-        if (nik.length !== 16 || isNaN(Number(nik))) {
-            return NextResponse.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
-        }
+        // ✅ Check if profile exists
+        const existingProfile = await query<{ id: number }>(
+            'SELECT id FROM user_profiles WHERE user_id = $1',
+            [user.id]
+        );
 
-        // Calculate age from tanggal_lahir
-        const birthDate = new Date(tanggalLahir);
-        const today = new Date();
-        let usia = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            usia--;
-        }
-
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            // Check if profile already exists
-            const existingProfile = await client.query(
-                'SELECT id FROM user_profiles WHERE user_id = $1',
-                [userId]
+        if (existingProfile.length > 0) {
+            // ✅ UPDATE existing profile in user_profiles table
+            await query(
+                `UPDATE user_profiles SET 
+                    full_name = $1,
+                    tanggal_lahir = $2,
+                    jenis_kelamin = $3,
+                    pendidikan_terakhir = $4,
+                    pekerjaan = $5,
+                    lokasi_test = $6,
+                    alamat_ktp = $7,
+                    nik = $8,
+                    marital_status = $9,
+                    foto = $10,
+                    updated_at = NOW()
+                 WHERE user_id = $11`,
+                [
+                    full_name,
+                    tanggal_lahir,
+                    jenis_kelamin || null,
+                    pendidikan_terakhir || null,
+                    pekerjaan || null,
+                    lokasi_test || null,
+                    alamat_ktp,
+                    nik,
+                    marital_status,
+                    foto || null,
+                    user.id
+                ]
             );
-
-            if (existingProfile.rows.length > 0) {
-                // Update existing profile
-                await client.query(
-                    `UPDATE user_profiles SET 
-                        full_name = $1,
-                        tanggal_lahir = $2,
-                        usia = $3,
-                        jenis_kelamin = $4,
-                        pendidikan_terakhir = $5,
-                        pekerjaan = $6,
-                        lokasi_test = $7,
-                        alamat_ktp = $8,
-                        nik = $9,
-                        foto = $10,
-                        marital_status = $11,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = $12`,
-                    [fullName, tanggalLahir, usia, jenisKelamin, pendidikanTerakhir,
-                     pekerjaan || null, lokasiTest, alamatKtp, nik, foto, maritalStatus, userId]
-                );
-            } else {
-                // Insert new profile
-                await client.query(
-                    `INSERT INTO user_profiles 
-                        (user_id, full_name, tanggal_lahir, usia, jenis_kelamin,
-                         pendidikan_terakhir, pekerjaan, lokasi_test, alamat_ktp, nik, foto, marital_status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-                    [userId, fullName, tanggalLahir, usia, jenisKelamin,
-                     pendidikanTerakhir, pekerjaan || null, lokasiTest, alamatKtp, nik, foto, maritalStatus]
-                );
-            }
-
-            // Update user's profile_completed flag and full_name
-            await client.query(
-                'UPDATE users SET profile_completed = true, full_name = $2 WHERE id = $1',
-                [userId, fullName]
+        } else {
+            // ✅ INSERT new profile into user_profiles table
+            await query(
+                `INSERT INTO user_profiles 
+                    (user_id, full_name, tanggal_lahir, jenis_kelamin, pendidikan_terakhir, 
+                     pekerjaan, lokasi_test, alamat_ktp, nik, marital_status, foto, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())`,
+                [
+                    user.id,
+                    full_name,
+                    tanggal_lahir,
+                    jenis_kelamin || null,
+                    pendidikan_terakhir || null,
+                    pekerjaan || null,
+                    lokasi_test || null,
+                    alamat_ktp,
+                    nik,
+                    marital_status,
+                    foto || null
+                ]
             );
-
-            await client.query('COMMIT');
-
-            // Update session cookie with JWT (must encrypt, not JSON.stringify)
-            const { encrypt } = await import('@/lib/auth');
-            const updatedToken = await encrypt({
-                id: session.id,
-                role: session.role,
-                username: session.username,
-                profileCompleted: true,
-                organizationId: session.organizationId
-            });
-
-            const response = NextResponse.json({ success: true });
-            response.cookies.set({
-                name: 'user_session',
-                value: updatedToken,
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                maxAge: 60 * 60 * 8,
-                path: '/',
-            });
-
-            return response;
-
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
         }
-    } catch (error: any) {
-        console.error('Profile completion error:', error);
-        return NextResponse.json({ error: 'Gagal menyimpan profil' }, { status: 500 });
+
+        // ✅ Update profile_completed flag in users table
+        await query(
+            'UPDATE users SET profile_completed = true WHERE id = $1',
+            [user.id]
+        );
+
+        return NextResponse.json({ 
+            success: true,
+            message: 'Profile saved successfully' 
+        });
+    } catch (error) {
+        console.error('Profile save error:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

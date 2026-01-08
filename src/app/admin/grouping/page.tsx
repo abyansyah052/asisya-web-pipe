@@ -216,24 +216,24 @@ export default function GroupingPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            {/* Navbar */}
-            <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
-                <div className="flex items-center gap-3">
+            {/* Navbar - Mobile Responsive */}
+            <nav className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
+                <div className="flex items-center gap-2 sm:gap-3">
                     <button
                         onClick={() => router.push('/admin/dashboard')}
-                        className="text-gray-600 hover:text-gray-800"
+                        className="text-gray-600 hover:text-gray-800 p-1"
                     >
-                        <ArrowLeft size={24} />
+                        <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
-                    <img src="/asisya.png" alt="Asisya" className="w-10 h-10 rounded-lg shadow-md" />
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900">Pembagian Kandidat</h1>
-                        <p className="text-xs text-gray-500">Auto-assign kandidat ke psikolog</p>
+                    <img src="/asisya.png" alt="Asisya" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg shadow-md" />
+                    <div className="min-w-0">
+                        <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">Pembagian Kandidat</h1>
+                        <p className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">Auto-assign kandidat ke psikolog</p>
                     </div>
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto p-6">
+            <main className="max-w-7xl mx-auto p-4 sm:p-6">
                 {/* Exam Selection */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                     <h3 className="font-semibold text-gray-700 mb-4">Pilih Ujian</h3>
@@ -271,7 +271,7 @@ export default function GroupingPage() {
                                             onChange={() => setAutoAssignMode('equal')}
                                             className="text-blue-600"
                                         />
-                                        <span className="text-sm">Bagi Rata</span>
+                                        <span className="text-sm text-gray-900">Bagi Rata</span>
                                     </label>
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
@@ -281,7 +281,7 @@ export default function GroupingPage() {
                                             onChange={() => setAutoAssignMode('custom')}
                                             className="text-blue-600"
                                         />
-                                        <span className="text-sm">Custom Jumlah</span>
+                                        <span className="text-sm text-gray-900">Custom Jumlah</span>
                                     </label>
                                 </div>
 
@@ -395,10 +395,10 @@ export default function GroupingPage() {
 
                 {/* Action Buttons */}
                 {selectedExam && candidates.length > 0 && (
-                    <div className="mt-6 flex justify-end gap-3">
+                    <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
                         <button
                             onClick={handleResetAssignment}
-                            className="flex items-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300"
+                            className="flex items-center justify-center gap-2 bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-300 w-full sm:w-auto"
                         >
                             <RefreshCw size={18} />
                             Reset
@@ -406,7 +406,7 @@ export default function GroupingPage() {
                         <button
                             onClick={handleSaveAssignment}
                             disabled={saving}
-                            className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                            className="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-lg hover:bg-green-700 disabled:opacity-50 w-full sm:w-auto"
                         >
                             <Save size={18} />
                             {saving ? 'Menyimpan...' : 'Simpan Pembagian'}

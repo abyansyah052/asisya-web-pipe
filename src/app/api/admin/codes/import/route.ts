@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
+import { getSession } from '@/lib/auth';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-
-// Generate random code
-function generateCode(length: number = 8): string {
+// Generate random code - 16 characters for standard
+function generateCode(length: number = 16): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
     for (let i = 0; i < length; i++) {
@@ -25,20 +23,17 @@ interface GeneratedCode {
 // POST - Import multiple codes from Excel data
 export async function POST(req: NextRequest) {
     try {
-        // Get token from cookies
+        // ✅ Use user_session cookie (fixed from auth_token)
         const cookieStore = await cookies();
-        const token = cookieStore.get('auth_token')?.value;
+        const sessionCookie = cookieStore.get('user_session');
 
-        if (!token) {
+        const user = await getSession(sessionCookie?.value);
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Verify token
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        const userRole = payload.role as string;
-
         // Only admin and super_admin can import codes
-        if (!['admin', 'super_admin'].includes(userRole)) {
+        if (!['admin', 'super_admin'].includes(user.role)) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
@@ -81,16 +76,24 @@ export async function POST(req: NextRequest) {
                 continue; // Skip if can't generate unique code
             }
 
-            // Insert code
-            const result = await query<GeneratedCode>(
-                `INSERT INTO candidate_codes (code, exam_id, expires_at, is_active, candidate_name, created_at)
-                 VALUES ($1, $2, $3, true, $4, NOW())
-                 RETURNING id, code, candidate_name, expires_at`,
-                [code, examId || null, expiresAt, name]
+            // ✅ Use metadata JSONB field for candidate_name (fixed from direct column)
+            const metadata = JSON.stringify({ candidate_name: name });
+
+            // Insert code with created_by from session
+            const result = await query<{ id: number; code: string; expires_at: string }>(
+                `INSERT INTO candidate_codes (code, exam_id, expires_at, is_active, metadata, created_by, created_at)
+                 VALUES ($1, $2, $3, true, $4::jsonb, $5, NOW())
+                 RETURNING id, code, expires_at`,
+                [code, examId || null, expiresAt, metadata, user.id]
             );
 
             if (result.length > 0) {
-                generatedCodes.push(result[0]);
+                generatedCodes.push({
+                    id: result[0].id,
+                    code: result[0].code,
+                    candidate_name: name,
+                    expires_at: result[0].expires_at
+                });
             }
         }
 

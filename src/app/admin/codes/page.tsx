@@ -43,7 +43,7 @@ export default function AdminCodesPage() {
 
     // Import Excel state
     const [showImportModal, setShowImportModal] = useState(false);
-    const [importData, setImportData] = useState<{name: string}[]>([]);
+    const [importData, setImportData] = useState<{name: string; validityDays?: number}[]>([]);
     const [importing, setImporting] = useState(false);
     const [importExam, setImportExam] = useState<number | null>(null);
     const [importExpiresDays, setImportExpiresDays] = useState(7);
@@ -184,6 +184,45 @@ export default function AdminCodesPage() {
         });
     };
 
+    // Download Kode Akses as Excel
+    const downloadCodesExcel = () => {
+        const activeCodes = codes.filter(c => c.is_active);
+        
+        // Create worksheet data
+        const wsData = [
+            ['No', 'Kode', 'Nama Kandidat', 'Ujian', 'Status', 'Dibuat', 'Kedaluwarsa', 'Email'],
+            ...activeCodes.map((c, idx) => [
+                idx + 1,
+                c.code,
+                c.candidate_name || '-',
+                c.exam_title || 'Semua Ujian',
+                c.used_at ? 'Terpakai' : 'Aktif',
+                formatDate(c.created_at),
+                c.expires_at ? formatDate(c.expires_at) : '-',
+                c.used_by_email || '-'
+            ])
+        ];
+        
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 5 },  // No
+            { wch: 20 }, // Kode
+            { wch: 25 }, // Nama Kandidat
+            { wch: 20 }, // Ujian
+            { wch: 12 }, // Status
+            { wch: 20 }, // Dibuat
+            { wch: 20 }, // Kedaluwarsa
+            { wch: 30 }, // Email
+        ];
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Daftar Kode Akses');
+        
+        XLSX.writeFile(wb, `Daftar_Kode_Akses_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`);
+    };
+
     const downloadCodesCSV = () => {
         const activeCodes = codes.filter(c => c.is_active);
         const csv = [
@@ -210,14 +249,14 @@ export default function AdminCodesPage() {
     // Download template Excel for import
     const downloadImportTemplate = () => {
         const ws = XLSX.utils.aoa_to_sheet([
-            ['Nama Peserta'],
-            ['Contoh: Budi Santoso'],
-            ['Contoh: Ani Wijaya'],
-            ['Contoh: Ahmad Hidayat'],
+            ['Nama Peserta', 'Masa Berlaku (hari)'],
+            ['Contoh: Budi Santoso', '30'],
+            ['Contoh: Ani Wijaya', '30'],
+            ['Contoh: Ahmad Hidayat', '30'],
         ]);
         
         // Set column width
-        ws['!cols'] = [{ wch: 30 }];
+        ws['!cols'] = [{ wch: 30 }, { wch: 20 }];
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Template Peserta');
@@ -237,12 +276,16 @@ export default function AdminCodesPage() {
                 const workbook = XLSX.read(data, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json<{[key: string]: string}>(sheet);
+                const jsonData = XLSX.utils.sheet_to_json<{[key: string]: string | number}>(sheet);
 
-                // Parse data - look for column named "Nama Peserta" or first column
+                // Parse data - look for column named "Nama Peserta" and "Masa Berlaku"
                 const parsed = jsonData.map(row => {
                     const name = row['Nama Peserta'] || row['nama_peserta'] || row['nama'] || row['Name'] || Object.values(row)[0];
-                    return { name: String(name || '').trim() };
+                    const validity = row['Masa Berlaku (hari)'] || row['masa_berlaku'] || row['validity'] || 30;
+                    return { 
+                        name: String(name || '').trim(),
+                        validityDays: Number(validity) || 30
+                    };
                 }).filter(item => item.name && item.name.length > 0 && !item.name.toLowerCase().startsWith('contoh'));
 
                 if (parsed.length === 0) {
@@ -338,11 +381,11 @@ export default function AdminCodesPage() {
                             Refresh
                         </button>
                         <button
-                            onClick={downloadCodesCSV}
+                            onClick={downloadCodesExcel}
                             className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50"
                         >
                             <Download size={18} />
-                            Export CSV
+                            Export Excel
                         </button>
                         <button
                             onClick={downloadImportTemplate}
@@ -426,7 +469,7 @@ export default function AdminCodesPage() {
                                         <tr key={code.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    <code className="bg-gray-100 px-3 py-1 rounded-lg font-mono text-sm">
+                                                    <code className="bg-gray-100 px-3 py-1 rounded-lg font-mono text-sm text-gray-900">
                                                         {code.code}
                                                     </code>
                                                     <button
@@ -448,7 +491,7 @@ export default function AdminCodesPage() {
                                                     <div className="text-xs text-gray-500">{code.used_by_email}</div>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-gray-600">
+                                            <td className="px-6 py-4 text-gray-900">
                                                 {code.exam_title || 'Semua Ujian'}
                                             </td>
                                             <td className="px-6 py-4">
@@ -592,8 +635,8 @@ export default function AdminCodesPage() {
 
             {/* Import Modal */}
             {showImportModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-gray-800">Import Peserta dari Excel</h2>
                             <button

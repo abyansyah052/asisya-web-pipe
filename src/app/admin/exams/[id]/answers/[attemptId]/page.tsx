@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, XCircle, FileText, User, Clock } from 'lucide-react';
 
-export default function ExamAnswersDetailPage({ 
-    params 
-}: { 
-    params: Promise<{ id: string; attemptId: string }> 
+export default function ExamAnswersDetailPage({
+    params
+}: {
+    params: Promise<{ id: string; attemptId: string }>
 }) {
     const router = useRouter();
     const [attempt, setAttempt] = useState<any>(null);
@@ -41,16 +41,6 @@ export default function ExamAnswersDetailPage({
     if (loading) return <div className="p-8">Loading...</div>;
     if (!attempt) return <div className="p-8">Data tidak ditemukan</div>;
 
-    const getOptionLabel = (option: string) => {
-        switch(option) {
-            case 'A': return 'option_a';
-            case 'B': return 'option_b';
-            case 'C': return 'option_c';
-            case 'D': return 'option_d';
-            default: return '';
-        }
-    };
-
     return (
         <div className="min-h-screen bg-gray-50 p-3 sm:p-6 font-sans">
             <div className="max-w-5xl mx-auto">
@@ -78,7 +68,7 @@ export default function ExamAnswersDetailPage({
                                 <div className="flex items-center gap-2">
                                     <Clock size={14} className="text-gray-400 sm:w-4 sm:h-4" />
                                     <span className="text-gray-600">
-                                        {new Date(attempt.end_time).toLocaleDateString('id-ID', { 
+                                        {new Date(attempt.end_time).toLocaleDateString('id-ID', {
                                             day: 'numeric',
                                             month: 'short',
                                             year: 'numeric',
@@ -107,16 +97,14 @@ export default function ExamAnswersDetailPage({
                 {/* Answers List */}
                 <div className="space-y-3 sm:space-y-4">
                     {answers.map((answer, index) => (
-                        <div 
-                            key={answer.id} 
-                            className={`bg-white p-4 sm:p-6 rounded-xl shadow-sm border-2 ${
-                                answer.is_correct ? 'border-green-200' : 'border-red-200'
-                            }`}
+                        <div
+                            key={answer.id}
+                            className={`bg-white p-4 sm:p-6 rounded-xl shadow-sm border-2 ${answer.is_correct ? 'border-green-200' : 'border-red-200'
+                                }`}
                         >
                             <div className="flex items-start gap-3 sm:gap-4">
-                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 ${
-                                    answer.is_correct ? 'bg-green-500' : 'bg-red-500'
-                                }`}>
+                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white text-base sm:text-lg font-bold flex-shrink-0 ${answer.is_correct ? 'bg-green-500' : 'bg-red-500'
+                                    }`}>
                                     {answer.question_number}
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -128,49 +116,45 @@ export default function ExamAnswersDetailPage({
                                             <XCircle size={20} className="text-red-500 flex-shrink-0 sm:w-6 sm:h-6" />
                                         )}
                                     </div>
-                                    
+
                                     <div className="space-y-2">
-                                        {['A', 'B', 'C', 'D'].map(option => {
-                                            const optionKey = getOptionLabel(option);
-                                            const isSelected = answer.selected_answer === option;
-                                            const isCorrect = answer.correct_answer === option;
-                                            
+                                        {answer.options && answer.options.map((option: any, optIdx: number) => {
+                                            const optionLetter = String.fromCharCode(65 + optIdx); // A, B, C, D...
+                                            const isSelected = answer.selected_option_id === option.id;
+                                            const isCorrect = option.is_correct;
+
+                                            // ✅ Only highlight selected answers
+                                            // For MMPI: no "correct/incorrect" concept, just show what was selected
                                             let bgColor = 'bg-gray-50';
                                             let textColor = 'text-gray-700';
                                             let borderColor = 'border-gray-200';
-                                            
-                                            if (isSelected && isCorrect) {
-                                                bgColor = 'bg-green-100';
-                                                textColor = 'text-green-800';
-                                                borderColor = 'border-green-400';
-                                            } else if (isSelected && !isCorrect) {
-                                                bgColor = 'bg-red-100';
-                                                textColor = 'text-red-800';
-                                                borderColor = 'border-red-400';
-                                            } else if (!isSelected && isCorrect) {
-                                                bgColor = 'bg-green-50';
-                                                textColor = 'text-green-700';
-                                                borderColor = 'border-green-300';
+
+                                            if (isSelected) {
+                                                // Highlight selected answer based on whether it's correct
+                                                if (isCorrect) {
+                                                    bgColor = 'bg-green-100';
+                                                    textColor = 'text-green-800';
+                                                    borderColor = 'border-green-400';
+                                                } else {
+                                                    bgColor = 'bg-red-100';
+                                                    textColor = 'text-red-800';
+                                                    borderColor = 'border-red-400';
+                                                }
                                             }
-                                            
+                                            // ✅ Removed: no longer highlight non-selected "correct" options
+
                                             return (
-                                                <div 
-                                                    key={option}
+                                                <div
+                                                    key={option.id}
                                                     className={`p-2.5 sm:p-3 rounded-lg border-2 ${bgColor} ${borderColor}`}
                                                 >
                                                     <div className="flex items-start gap-2">
-                                                        <span className={`font-bold ${textColor} w-5 sm:w-6 shrink-0 text-sm sm:text-base`}>{option}.</span>
-                                                        <span className={`${textColor} flex-1 text-sm sm:text-base`}>{answer[optionKey]}</span>
+                                                        <span className={`font-bold ${textColor} w-5 sm:w-6 shrink-0 text-sm sm:text-base`}>{optionLetter}.</span>
+                                                        <span className={`${textColor} flex-1 text-sm sm:text-base`}>{option.text}</span>
                                                         {isSelected && (
-                                                            <span className={`text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shrink-0 ${
-                                                                isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                                                            }`}>
+                                                            <span className={`text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shrink-0 ${isCorrect ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
+                                                                }`}>
                                                                 Jawaban
-                                                            </span>
-                                                        )}
-                                                        {!isSelected && isCorrect && (
-                                                            <span className="text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-green-200 text-green-800 shrink-0">
-                                                                Benar
                                                             </span>
                                                         )}
                                                     </div>
