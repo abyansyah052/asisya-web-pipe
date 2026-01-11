@@ -1,0 +1,220 @@
+name: CI/CD Pipeline (Staging & Production)
+
+on:
+  push:
+    branches: 
+      - main        # Production → Hostinger VPS
+      - develop     # Staging → Vercel
+      - staging     # Staging → Vercel
+  pull_request:
+    branches: [main, develop, staging]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # LINT & TEST (runs on all branches)
+  # ============================================
+  lint-and-test:
+    name: 🔍 Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: 📝 TypeScript type check
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+  # ============================================
+  # STAGING DEPLOYMENT → VERCEL
+  # ============================================
+  deploy-staging:
+    name: 🚀 Deploy to Staging (Vercel)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: |
+      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: 🔗 Pull Vercel Environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: 🔨 Build Project
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          # Staging environment variables
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.STAGING_APP_URL }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.STAGING_UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.STAGING_UPSTASH_REDIS_REST_TOKEN }}
+
+      - name: 🚀 Deploy to Vercel (Preview)
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🌐 Deployed to: $URL"
+
+      - name: 💬 Comment PR with Preview URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🚀 Staging Preview Deployed!\n\n**Preview URL:** ${{ steps.deploy.outputs.url }}\n\n*Deployed from commit: ${context.sha.substring(0, 7)}*`
+            })
+
+      - name: ✅ Staging deployment successful
+        run: |
+          echo "🎉 Successfully deployed to Vercel Staging!"
+          echo "🌐 URL: ${{ steps.deploy.outputs.url }}"
+
+  # ============================================
+  # PRODUCTION DEPLOYMENT → HOSTINGER VPS
+  # ============================================
+  deploy-production:
+    name: 🚀 Deploy to Production (Hostinger VPS)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: |
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    
+    environment:
+      name: production
+      url: https://kfarma.asisyaconsulting.id
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Build Next.js app
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
+      - name: 📁 Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r .next deploy/
+          cp -r public deploy/
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          cp next.config.ts deploy/
+          cd deploy && zip -r ../build.zip .
+
+      - name: 📤 Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "build.zip"
+          target: "/var/www/asisya-web"
+
+      - name: 🚀 Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /var/www/asisya-web
+            
+            echo "📦 Extracting build..."
+            unzip -o build.zip
+            rm build.zip
+            
+            echo "📥 Installing production dependencies..."
+            npm ci --production
+            
+            echo "🔄 Restarting application..."
+            pm2 restart asisya-web || pm2 start npm --name "asisya-web" -- start
+            pm2 save
+            
+            echo "✅ Deploy complete!"
+
+      - name: ✅ Production deployment successful
+        run: |
+          echo "🎉 Successfully deployed to Production!"
+          echo "🌐 URL: https://kfarma.asisyaconsulting.id"
+
+  # ============================================
+  # NOTIFY ON FAILURE
+  # ============================================
+  notify-failure:
+    name: 📢 Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: failure()
+    
+    steps:
+      - name: 🚨 Deployment Failed
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"

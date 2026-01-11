@@ -112,10 +112,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
 }
 
-// Only run middleware on specific paths - CRITICAL for performance
+// Only run middleware on specific protected paths to save server resources
 export const config = {
     matcher: [
-        // Skip all static files and Next.js internals
-        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)).*)',
+        '/candidate/:path*',
+        '/psychologist/:path*',
+        '/admin/:path*',
+        '/superadmin/:path*',
+        // API routes that need protection usually handle auth themselves or use session
+        // but if you want global protection for specific APIs:
+        // '/api/protected/:path*' 
     ],
 };
