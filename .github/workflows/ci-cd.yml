@@ -23,6 +23,12 @@ on:
           - deploy-staging
           - deploy-production-emergency
 
+# Required permissions for manual-approval action and pushing to main
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 env:
   NODE_VERSION: '20'
 
