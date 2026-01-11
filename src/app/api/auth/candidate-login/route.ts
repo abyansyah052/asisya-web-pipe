@@ -5,16 +5,20 @@ import { ROLES } from '@/lib/roles';
 
 // =============================================
 // OPTIMIZED CANDIDATE LOGIN FOR 800 CONCURRENT USERS
+// ✅ WITH TRANSACTION TO PREVENT RACE CONDITION
 // =============================================
 
 // Kode yang sudah dipakai masih bisa digunakan dalam 2 hari (untuk preventif jaringan bermasalah)
 const REUSE_WINDOW_DAYS = 2;
 
 export async function POST(req: NextRequest) {
+    const client = await pool.connect();
+    
     try {
         const { code } = await req.json();
 
         if (!code || typeof code !== 'string') {
+            client.release();
             return NextResponse.json(
                 { error: 'Kode akses diperlukan' },
                 { status: 400 }
@@ -23,8 +27,11 @@ export async function POST(req: NextRequest) {
 
         const normalizedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-        // Single optimized query - get code and candidate info together
-        const result = await pool.query(
+        // ✅ START TRANSACTION to prevent race condition
+        await client.query('BEGIN');
+
+        // ✅ Lock the row with FOR UPDATE to prevent concurrent access
+        const result = await client.query(
             `SELECT 
                 cc.id as code_id,
                 cc.candidate_id,
@@ -42,11 +49,14 @@ export async function POST(req: NextRequest) {
              LEFT JOIN users u ON cc.candidate_id = u.id
              WHERE REPLACE(cc.code, '-', '') = $1 
              AND cc.is_active = true
+             FOR UPDATE OF cc
              LIMIT 1`,
             [normalizedCode]
         );
 
         if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            client.release();
             return NextResponse.json(
                 { error: 'Kode tidak valid atau sudah tidak aktif' },
                 { status: 401 }
@@ -57,6 +67,8 @@ export async function POST(req: NextRequest) {
 
         // Validate expiry
         if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
+            await client.query('ROLLBACK');
+            client.release();
             return NextResponse.json(
                 { error: 'Kode sudah kedaluwarsa' },
                 { status: 401 }
@@ -72,6 +84,8 @@ export async function POST(req: NextRequest) {
                 const reuseDeadline = new Date(usedAt.getTime() + (REUSE_WINDOW_DAYS * 24 * 60 * 60 * 1000));
 
                 if (new Date() > reuseDeadline) {
+                    await client.query('ROLLBACK');
+                    client.release();
                     return NextResponse.json(
                         { error: 'Kode sudah mencapai batas penggunaan dan melewati masa tenggang 2 hari' },
                         { status: 401 }
@@ -80,6 +94,8 @@ export async function POST(req: NextRequest) {
                 // Masih dalam window, allow re-login tanpa increment usage
                 console.log(`Code ${normalizedCode} re-used within ${REUSE_WINDOW_DAYS}-day window`);
             } else {
+                await client.query('ROLLBACK');
+                client.release();
                 return NextResponse.json(
                     { error: 'Kode sudah mencapai batas penggunaan' },
                     { status: 401 }
@@ -104,13 +120,13 @@ export async function POST(req: NextRequest) {
 
             // Only increment usage if not already maxed (reuse window case)
             if (!isReuseWithinWindow) {
-                await pool.query(
+                await client.query(
                     'UPDATE candidate_codes SET current_uses = current_uses + 1 WHERE id = $1',
                     [codeData.code_id]
                 );
             }
         } else {
-            // Create new candidate - single transaction
+            // Create new candidate - within same transaction
             const candidateUsername = `candidate_${normalizedCode.toLowerCase()}`;
 
             // ✅ Extract candidate name from metadata if available (from imported codes)
@@ -119,7 +135,7 @@ export async function POST(req: NextRequest) {
                 candidateName = codeData.metadata.candidate_name || null;
             }
 
-            const newUser = await pool.query(
+            const newUser = await client.query(
                 `INSERT INTO users (username, email, password_hash, role, organization_id, profile_completed, registration_type, full_name)
                  VALUES ($1, $2, $3, $4, $5, false, 'candidate_code', $6)
                  RETURNING id, username`,
@@ -137,13 +153,16 @@ export async function POST(req: NextRequest) {
             username = newUser.rows[0].username;
 
             // Update code with candidate link and increment usage
-            await pool.query(
+            await client.query(
                 `UPDATE candidate_codes 
                  SET candidate_id = $1, used_at = NOW(), current_uses = current_uses + 1
                  WHERE id = $2`,
                 [userId, codeData.code_id]
             );
         }
+
+        // ✅ COMMIT TRANSACTION
+        await client.query('COMMIT');
 
         // Create JWT
         const token = await encrypt({
@@ -172,9 +191,13 @@ export async function POST(req: NextRequest) {
             path: '/',
         });
 
+        client.release();
         return response;
 
     } catch (error) {
+        // ✅ ROLLBACK on any error
+        await client.query('ROLLBACK').catch(() => {});
+        client.release();
         console.error('Candidate login error:', error);
         return NextResponse.json(
             { error: 'Terjadi kesalahan server' },

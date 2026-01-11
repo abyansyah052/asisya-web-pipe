@@ -62,15 +62,7 @@ export default function CandidateLoginPage() {
             backgroundImage: `linear-gradient(to bottom right, rgba(7, 31, 86, 0.92), rgba(9, 147, 169, 0.85)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')`,
           }}
         >
-          {/* Top Section - Portal Info */}
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-sm font-medium text-[#EF942A]">
-              <Users size={18} className="text-[#EF942A]" />
-              Portal Khusus Kandidat
-            </div>
-          </div>
-
-          {/* Main Content - Bottom */}
+          {/* Main Content - Top */}
           <div className="relative z-10 flex flex-col gap-4">
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
               Selamat Datang di<br />Portal Asesmen
@@ -78,15 +70,22 @@ export default function CandidateLoginPage() {
             <p className="text-white/80 text-base lg:text-lg font-light leading-relaxed max-w-md">
               Platform asesmen psikologi profesional untuk mengukur potensi dan kepribadian Anda secara komprehensif.
             </p>
-            {/* Logo + Title in same row - Bottom Right */}
-            <div className="mt-2 pt-4 border-t border-white/20 flex items-center justify-between">
+          </div>
+
+          {/* Logo + Title + Portal Info - Bottom */}
+          <div className="relative z-10 mt-2 pt-4 border-t border-white/20 flex items-center justify-between">
+            <div className="flex flex-col">
               <span className="text-lg lg:text-xl font-semibold">Kimia Farma Assessment</span>
-              <img 
-                src="/kimia-farma-logo.jpg" 
-                alt="Kimia Farma" 
-                className="h-12 lg:h-14 w-auto rounded-xl shadow-xl shadow-black/30" 
-              />
+              <div className="flex items-center gap-2 text-sm font-medium text-[#EF942A] mt-1">
+                <Users size={16} className="text-[#EF942A]" />
+                Portal Khusus Peserta
+              </div>
             </div>
+            <img 
+              src="/kimia-farma-logo.jpg" 
+              alt="Kimia Farma" 
+              className="h-12 lg:h-14 w-auto rounded-xl shadow-xl shadow-black/30" 
+            />
           </div>
         </div>
 
@@ -161,7 +160,7 @@ export default function CandidateLoginPage() {
           <div className="mt-auto pt-8 text-center lg:text-left space-y-2">
             <p className="text-slate-500 text-sm">
               Belum punya kode akses?{' '}
-              <span className="text-[#0993A9] font-semibold">Hubungi psikolog atau HRD Anda</span>
+              <span className="text-[#0993A9] font-semibold">Hubungi Psikolog atau HRD Anda</span>
             </p>
             <p className="text-slate-400 text-xs font-normal">© 2025 Kimia Farma Assessment. Powered by Asisya.</p>
           </div>
