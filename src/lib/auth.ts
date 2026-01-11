@@ -1,9 +1,12 @@
 import { SignJWT, jwtVerify, JWTPayload } from 'jose';
 import { UserRole, ROLES, getLoginRedirect } from './roles';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-super-secret-key-min-32-chars-pls-change-in-production'
-);
+// ✅ SECURITY FIX: Throw error if JWT_SECRET is missing - no fallback
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW || JWT_SECRET_RAW.length < 32) {
+  throw new Error('CRITICAL: JWT_SECRET environment variable must be set and at least 32 characters');
+}
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 export interface SessionData {
   id: number;

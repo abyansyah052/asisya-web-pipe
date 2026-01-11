@@ -25,9 +25,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const client = await pool.connect();
 
         try {
-            // Verify the attempt belongs to this user and is still in progress
+            // ✅ SECURITY FIX: Verify attempt belongs to this user AND check time limit
             const attemptRes = await client.query(
-                'SELECT id FROM exam_attempts WHERE id = $1 AND user_id = $2 AND exam_id = $3 AND status = $4',
+                `SELECT ea.id, ea.start_time, e.duration_minutes 
+                 FROM exam_attempts ea
+                 JOIN exams e ON ea.exam_id = e.id
+                 WHERE ea.id = $1 AND ea.user_id = $2 AND ea.exam_id = $3 AND ea.status = $4`,
                 [attemptId, user.id, examId, 'in_progress']
             );
 
@@ -35,18 +38,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 return NextResponse.json({ error: 'Invalid or completed attempt' }, { status: 403 });
             }
 
-            // Save/Update answers using UPSERT
-            for (const [questionId, optionId] of Object.entries(answers)) {
+            // ✅ SECURITY FIX: Validate time limit (add 60s grace period for network latency)
+            const attempt = attemptRes.rows[0];
+            const startTime = new Date(attempt.start_time);
+            const now = new Date();
+            const elapsedMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
+            const gracePeriodMinutes = 1; // 60 seconds grace period
+            
+            if (elapsedMinutes > attempt.duration_minutes + gracePeriodMinutes) {
+                // Auto-complete the attempt if time exceeded
                 await client.query(
-                    `INSERT INTO exam_answers (attempt_id, question_id, selected_option_id)
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (attempt_id, question_id)
-                     DO UPDATE SET selected_option_id = $3, answered_at = NOW()`,
-                    [attemptId, parseInt(questionId), optionId]
+                    'UPDATE exam_attempts SET status = $1, end_time = NOW() WHERE id = $2',
+                    ['completed', attemptId]
                 );
+                return NextResponse.json({ error: 'Waktu ujian telah habis' }, { status: 403 });
             }
 
-            return NextResponse.json({ success: true, savedCount: Object.keys(answers).length });
+            // ✅ PERFORMANCE FIX: Bulk Insert instead of N+1 queries
+            const questionIds = Object.keys(answers).map(Number);
+            
+            if (questionIds.length > 0) {
+                const insertValues: string[] = [];
+                const insertParams: (number | string)[] = [attemptId];
+
+                questionIds.forEach((qId, index) => {
+                    const selectedOptId = answers[qId];
+                    const paramOffset = index * 2 + 2;
+                    insertValues.push(`($1, $${paramOffset}, $${paramOffset + 1})`);
+                    insertParams.push(qId, selectedOptId);
+                });
+
+                const bulkInsertQuery = `
+                    INSERT INTO exam_answers (attempt_id, question_id, selected_option_id)
+                    VALUES ${insertValues.join(', ')}
+                    ON CONFLICT (attempt_id, question_id)
+                    DO UPDATE SET selected_option_id = EXCLUDED.selected_option_id, answered_at = NOW()
+                `;
+                
+                await client.query(bulkInsertQuery, insertParams);
+            }
+
+            return NextResponse.json({ success: true, savedCount: questionIds.length });
 
         } finally {
             client.release();

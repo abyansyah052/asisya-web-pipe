@@ -56,7 +56,8 @@ export const apiRateLimiter = createRateLimiter(300, 'm', 'api');
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,
-  timeoutMs: number = 1000
+  timeoutMs: number = 1000,
+  failOpen: boolean = false // ✅ NEW: Allow fail-open for critical paths
 ): Promise<{ success: boolean; remaining?: number; reset?: number }> {
   
   // Staging = always allow (no rate limiting)
@@ -64,8 +65,12 @@ export async function checkRateLimit(
     return { success: true };
   }
 
-  // Production without limiter configured = FAIL CLOSED
+  // Production without limiter configured
   if (!limiter) {
+    if (failOpen) {
+      console.warn('⚠️ Rate limiter not configured - allowing request (fail-open mode)');
+      return { success: true };
+    }
     console.error('🚨 CRITICAL: Rate limiter not configured in production');
     return { success: false };
   }
@@ -76,8 +81,12 @@ export async function checkRateLimit(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
     ]);
 
-    // Timeout = block in production
+    // Timeout handling
     if (result === null) {
+      if (failOpen) {
+        console.warn('⚠️ Rate limit timeout - allowing request (fail-open mode)');
+        return { success: true };
+      }
       console.error('🚨 Rate limit timeout - blocking request');
       return { success: false };
     }
@@ -89,6 +98,11 @@ export async function checkRateLimit(
     };
   } catch (error) {
     console.error('❌ Rate limit error:', error);
+    // ✅ SECURITY FIX: Fail-open for critical paths (exam submit) to prevent Redis outage = total outage
+    if (failOpen) {
+      console.warn('⚠️ Rate limit error - allowing request (fail-open mode)');
+      return { success: true };
+    }
     return { success: false };
   }
 }

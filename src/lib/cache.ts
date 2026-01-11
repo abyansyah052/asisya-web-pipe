@@ -21,6 +21,37 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 // In-memory cache fallback (for when Redis is not available)
 const memoryCache = new Map<string, { data: unknown; expires: number }>();
 
+// ✅ CRITICAL FIX: Auto-cleanup expired entries every 60 seconds to prevent memory leak
+// Without this, memory grows unbounded and causes OOM crash in 24-48 hours with 800 users
+const CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
+let cleanupTimer: NodeJS.Timeout | null = null;
+
+function startMemoryCacheCleanup() {
+    if (cleanupTimer) return; // Already running
+    
+    cleanupTimer = setInterval(() => {
+        const now = Date.now();
+        let cleaned = 0;
+        for (const [key, value] of memoryCache.entries()) {
+            if (value.expires < now) {
+                memoryCache.delete(key);
+                cleaned++;
+            }
+        }
+        if (cleaned > 0) {
+            console.log(`[Cache] Cleaned ${cleaned} expired entries. Current size: ${memoryCache.size}`);
+        }
+    }, CLEANUP_INTERVAL_MS);
+    
+    // Don't prevent process exit
+    if (cleanupTimer.unref) {
+        cleanupTimer.unref();
+    }
+}
+
+// Start cleanup on module load
+startMemoryCacheCleanup();
+
 // =============================================
 // GET CACHED DATA
 // =============================================

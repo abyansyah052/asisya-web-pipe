@@ -16,8 +16,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // ✅ RATE LIMITING: Fail-closed approach
-        const rateLimit = await checkRateLimit(submitRateLimiter, `submit:${user.id}`);
+        // ✅ RATE LIMITING: Fail-open for exam submission (critical path)
+        // Redis outage should NOT prevent students from submitting their exams
+        const rateLimit = await checkRateLimit(submitRateLimiter, `submit:${user.id}`, 1000, true);
         
         if (!rateLimit.success) {
             const resetTime = rateLimit.reset 
@@ -47,6 +48,59 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             const { id: examId } = await params;
 
+            // ✅ SECURITY FIX: Validate attempt ownership, status, AND time limit in ONE query
+            const attemptValidation = await client.query(
+                `SELECT ea.id, ea.status, ea.start_time, ea.user_id, e.duration_minutes
+                 FROM exam_attempts ea
+                 JOIN exams e ON ea.exam_id = e.id
+                 WHERE ea.id = $1 AND ea.exam_id = $2`,
+                [attemptId, examId]
+            );
+
+            if (attemptValidation.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return NextResponse.json({ error: 'Attempt tidak ditemukan' }, { status: 404 });
+            }
+
+            const attempt = attemptValidation.rows[0];
+
+            // ✅ SECURITY FIX #1: Validate ownership - prevent submitting for other users
+            if (attempt.user_id !== user.id) {
+                await client.query('ROLLBACK');
+                console.error(`SECURITY ALERT: User ${user.id} tried to submit for attempt ${attemptId} owned by user ${attempt.user_id}`);
+                return NextResponse.json({ error: 'Unauthorized: Attempt bukan milik Anda' }, { status: 403 });
+            }
+
+            // ✅ SECURITY FIX #2: Prevent answer replay attack - only allow in_progress submissions
+            if (attempt.status === 'completed') {
+                await client.query('ROLLBACK');
+                return NextResponse.json({ error: 'Ujian sudah diselesaikan sebelumnya' }, { status: 403 });
+            }
+
+            if (attempt.status !== 'in_progress') {
+                await client.query('ROLLBACK');
+                return NextResponse.json({ error: 'Status ujian tidak valid' }, { status: 403 });
+            }
+
+            // ✅ SECURITY FIX #3: Validate time limit (add 2 minutes grace period)
+            const startTime = new Date(attempt.start_time);
+            const now = new Date();
+            const elapsedMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
+            const gracePeriodMinutes = 2; // 2 minutes grace for submission
+            
+            if (elapsedMinutes > attempt.duration_minutes + gracePeriodMinutes) {
+                // Mark as completed with 0 score if time exceeded
+                await client.query(
+                    'UPDATE exam_attempts SET status = $1, score = 0, end_time = NOW() WHERE id = $2',
+                    ['completed', attemptId]
+                );
+                await client.query('COMMIT');
+                return NextResponse.json({ 
+                    error: 'Waktu ujian telah habis. Jawaban tidak dapat disimpan.',
+                    timeExpired: true 
+                }, { status: 403 });
+            }
+
             // ✅ OPTIMIZED: Single bulk query with explicit type casting
             const questionsData = await client.query(
                 `SELECT q.id, q.marks, o.id as option_id, o.is_correct
@@ -60,7 +114,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             const marksMap = new Map<number, number>();
             const correctnessMap = new Map<number, boolean>();
 
-            questionsData.rows.forEach(row => {
+            questionsData.rows.forEach((row: { id: number; marks: number; option_id: number; is_correct: boolean }) => {
                 marksMap.set(row.id, row.marks);
                 correctnessMap.set(row.option_id, row.is_correct);
             });
@@ -70,7 +124,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             // ✅ TRUE BULK INSERT: Build single query with multiple VALUES
             const insertValues: string[] = [];
-            const insertParams: any[] = [attemptId];
+            const insertParams: (number | string)[] = [attemptId];
 
             questionIds.forEach((qId, index) => {
                 const selectedOptId = answers[qId];
@@ -91,7 +145,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             // Execute single bulk INSERT (1 query instead of N queries)
             if (insertValues.length > 0) {
                 const bulkInsertQuery = `
-                    INSERT INTO answers (attempt_id, question_id, selected_option_id)
+                    INSERT INTO exam_answers (attempt_id, question_id, selected_option_id)
                     VALUES ${insertValues.join(', ')}
                     ON CONFLICT (attempt_id, question_id)
                     DO UPDATE SET selected_option_id = EXCLUDED.selected_option_id

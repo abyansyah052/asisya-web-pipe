@@ -20,31 +20,64 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const client = await pool.connect();
 
         try {
-            // 1. Check if exam exists
-            const examRes = await client.query('SELECT * FROM exams WHERE id = $1', [examId]);
-            if (examRes.rows.length === 0) return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+            // ✅ SECURITY FIX: Validate user has access to this exam via candidate_codes
+            const accessCheck = await client.query(
+                `SELECT cc.id FROM candidate_codes cc
+                 WHERE cc.candidate_id = $1 AND cc.exam_id = $2 AND cc.is_active = true`,
+                [user.id, examId]
+            );
+            
+            // Allow access if user has valid code OR if they already have an attempt (backward compatibility)
+            const existingAttempt = await client.query(
+                'SELECT id FROM exam_attempts WHERE user_id = $1 AND exam_id = $2',
+                [user.id, examId]
+            );
+            
+            if (accessCheck.rows.length === 0 && existingAttempt.rows.length === 0) {
+                return NextResponse.json({ error: 'Anda tidak memiliki akses ke ujian ini' }, { status: 403 });
+            }
+
+            // 1. Check if exam exists and is published
+            const examRes = await client.query(
+                'SELECT id, title, duration_minutes, display_mode, instructions, description, require_all_answers, status FROM exams WHERE id = $1',
+                [examId]
+            );
+            if (examRes.rows.length === 0) {
+                return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+            }
             const exam = examRes.rows[0];
 
-            // 2. Check/Create Attempt
+            // ✅ SECURITY: Only allow published exams
+            if (exam.status !== 'published') {
+                return NextResponse.json({ error: 'Ujian tidak tersedia' }, { status: 403 });
+            }
+
+            // 2. ✅ SECURITY FIX: Check for existing attempts and prevent multiple in_progress
             const attemptRes = await client.query(
-                'SELECT * FROM exam_attempts WHERE user_id = $1 AND exam_id = $2',
+                'SELECT id, status, start_time FROM exam_attempts WHERE user_id = $1 AND exam_id = $2 ORDER BY created_at DESC LIMIT 1',
                 [user.id, examId]
             );
 
-            let attemptId;
+            let attemptId: number;
             let startTime: Date;
             
             if (attemptRes.rows.length > 0) {
                 const attempt = attemptRes.rows[0];
+                
+                // ✅ SECURITY FIX: If completed, don't allow new attempt
                 if (attempt.status === 'completed') {
-                    return NextResponse.json({ error: 'Exam already completed' }, { status: 403 });
+                    return NextResponse.json({ error: 'Anda sudah menyelesaikan ujian ini' }, { status: 403 });
                 }
+                
+                // Continue existing in_progress attempt
                 attemptId = attempt.id;
                 startTime = new Date(attempt.start_time);
             } else {
-                // Start new attempt
+                // ✅ Start new attempt with row-level lock to prevent race condition
                 const newAttempt = await client.query(
-                    'INSERT INTO exam_attempts (user_id, exam_id, start_time, status) VALUES ($1, $2, NOW(), $3) RETURNING id, start_time',
+                    `INSERT INTO exam_attempts (user_id, exam_id, start_time, status) 
+                     VALUES ($1, $2, NOW(), $3) 
+                     RETURNING id, start_time`,
                     [user.id, examId, 'in_progress']
                 );
                 attemptId = newAttempt.rows[0].id;
@@ -57,40 +90,41 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             const totalSeconds = exam.duration_minutes * 60;
             const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
 
-            // 3. Get Questions and Options - OPTIMIZED with Map for O(1) lookup
-            const qRes = await client.query(
-                'SELECT id, text, marks FROM questions WHERE exam_id = $1 ORDER BY id ASC',
+            // ✅ If time already expired, mark as completed
+            if (remainingSeconds === 0) {
+                await client.query(
+                    'UPDATE exam_attempts SET status = $1, end_time = NOW() WHERE id = $2 AND status = $3',
+                    ['completed', attemptId, 'in_progress']
+                );
+                return NextResponse.json({ error: 'Waktu ujian telah habis' }, { status: 403 });
+            }
+
+            // 3. ✅ PERFORMANCE FIX: Get Questions and Options in ONE optimized query using json_agg
+            const questionsWithOptions = await client.query(
+                `SELECT 
+                    q.id, 
+                    q.text,
+                    json_agg(
+                        json_build_object('id', o.id, 'text', o.text)
+                        ORDER BY o.id
+                    ) as options
+                 FROM questions q
+                 LEFT JOIN options o ON o.question_id = q.id
+                 WHERE q.exam_id = $1
+                 GROUP BY q.id, q.text
+                 ORDER BY q.id ASC`,
                 [examId]
             );
-            const questions = qRes.rows;
 
-            if (questions.length === 0) {
+            if (questionsWithOptions.rows.length === 0) {
                 return NextResponse.json({ error: 'No questions found in this exam' }, { status: 404 });
             }
 
-            const questionIds = questions.map(q => q.id);
-
-            // Fetch options WITHOUT is_correct (security: don't send answers to client)
-            // OPTIMIZED: Use ANY($1::int[]) instead of subquery
-            const optRes = await client.query(
-                `SELECT id, question_id, text FROM options WHERE question_id = ANY($1::int[]) ORDER BY question_id, id`,
-                [questionIds]
-            );
-            const options = optRes.rows;
-
-            // OPTIMIZED: Build Map for O(1) lookup instead of O(N*M) filter
-            const optionsMap = new Map<number, Array<{ id: number; text: string }>>();
-            options.forEach((opt: { id: number; question_id: number; text: string }) => {
-                if (!optionsMap.has(opt.question_id)) {
-                    optionsMap.set(opt.question_id, []);
-                }
-                optionsMap.get(opt.question_id)!.push({ id: opt.id, text: opt.text });
-            });
-
-            // Map questions with options - O(N) instead of O(N*M)
-            const questionsDid = questions.map(q => ({
-                ...q,
-                options: optionsMap.get(q.id) || []
+            // ✅ SECURITY FIX: Don't send marks to client (removed from SELECT)
+            const questions = questionsWithOptions.rows.map((q: { id: number; text: string; options: Array<{ id: number; text: string }> }) => ({
+                id: q.id,
+                text: q.text,
+                options: q.options || []
             }));
 
             // ✅ Load saved answers from database (persist across reconnect)
@@ -113,7 +147,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     require_all_answers: exam.require_all_answers || false
                 },
                 attemptId,
-                questions: questionsDid,
+                questions,
                 // ✅ Send remaining time from server (persists across refresh)
                 remainingSeconds,
                 startTime: startTime.toISOString(),

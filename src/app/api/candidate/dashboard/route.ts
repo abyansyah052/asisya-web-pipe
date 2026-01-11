@@ -19,7 +19,7 @@ export async function GET() {
 
         const client = await pool.connect();
         try {
-            // ✅ OPTIMIZED: Single CTE query instead of 4 separate queries
+            // ✅ OPTIMIZED: Single CTE query with specific columns (no SELECT *)
             const dashboardQuery = `
                 WITH user_info AS (
                     SELECT id, username, email, full_name FROM users WHERE id = $1
@@ -39,12 +39,12 @@ export async function GET() {
                     ORDER BY ea.end_time DESC
                 ),
                 available_exams AS (
-                    SELECT e.*
+                    SELECT e.id, e.title, e.description, e.duration_minutes, e.status
                     FROM exams e
                     WHERE e.status = 'published'
-                    AND e.id NOT IN (
-                        SELECT exam_id FROM exam_attempts 
-                        WHERE user_id = $1 AND status = 'completed'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM exam_attempts ea 
+                        WHERE ea.exam_id = e.id AND ea.user_id = $1 AND ea.status = 'completed'
                     )
                     ORDER BY e.created_at DESC
                 )

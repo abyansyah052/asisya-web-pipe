@@ -8,10 +8,30 @@ import { loginRateLimiter, checkRateLimit } from '@/lib/ratelimit';
 // OPTIMIZED LOGIN API FOR 800 CONCURRENT USERS
 // =============================================
 
+// ✅ SECURITY: Password strength validation
+function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
+    if (password.length < 8) {
+        return { valid: false, error: 'Password minimal 8 karakter' };
+    }
+    // At least one letter and one number
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+        return { valid: false, error: 'Password harus mengandung huruf dan angka' };
+    }
+    return { valid: true };
+}
+
+// ✅ SECURITY: Sanitize input to prevent XSS
+function sanitizeInput(input: string): string {
+    return input
+        .trim()
+        .replace(/[<>]/g, '') // Remove potential HTML tags
+        .slice(0, 255); // Limit length
+}
+
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { username, password } = body;
+        let { username, password } = body;
 
         if (!username || !password) {
             return NextResponse.json(
@@ -19,6 +39,9 @@ export async function POST(req: Request) {
                 { status: 400 }
             );
         }
+
+        // ✅ SECURITY: Sanitize input
+        username = sanitizeInput(username);
 
         // Non-blocking rate limit check (1s timeout)
         const ip = req.headers.get('x-forwarded-for') ||
@@ -34,11 +57,21 @@ export async function POST(req: Request) {
             );
         }
 
-        // Query user - use pool.query directly (no client.connect overhead)
-        const result = await pool.query(
-            'SELECT id, username, password_hash, role, is_active, profile_completed FROM users WHERE username = $1 OR email = $1 LIMIT 1',
+        // ✅ SECURITY FIX: Separate queries for username and email to prevent SQL injection ambiguity
+        // First try username
+        let result = await pool.query(
+            'SELECT id, username, password_hash, role, is_active, profile_completed FROM users WHERE username = $1 LIMIT 1',
             [username]
         );
+        
+        // If not found, try email
+        if (result.rows.length === 0) {
+            result = await pool.query(
+                'SELECT id, username, password_hash, role, is_active, profile_completed FROM users WHERE email = $1 LIMIT 1',
+                [username]
+            );
+        }
+        
         const user = result.rows[0];
 
         if (!user) {

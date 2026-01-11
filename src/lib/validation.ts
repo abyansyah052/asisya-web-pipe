@@ -29,6 +29,90 @@ function isIntInRange(val: unknown, min: number, max: number): boolean {
 }
 
 // =============================================
+// ✅ SECURITY: Input Sanitization
+// =============================================
+
+/**
+ * Sanitize string input to prevent XSS attacks
+ * - Removes HTML tags
+ * - Limits length
+ * - Trims whitespace
+ */
+export function sanitizeString(input: string, maxLength: number = 255): string {
+    return input
+        .trim()
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/[<>'"&]/g, (char) => {
+            const entities: Record<string, string> = {
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;',
+                '&': '&amp;'
+            };
+            return entities[char] || char;
+        })
+        .slice(0, maxLength);
+}
+
+/**
+ * Sanitize string but preserve original characters (for display)
+ * Only removes potentially dangerous HTML/script tags
+ */
+export function sanitizeForStorage(input: string, maxLength: number = 255): string {
+    return input
+        .trim()
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+        .replace(/<[^>]*on\w+\s*=\s*[^>]*>/gi, '') // Remove event handlers
+        .replace(/javascript:/gi, '') // Remove javascript: URLs
+        .slice(0, maxLength);
+}
+
+// =============================================
+// ✅ SECURITY: Password Strength Validation
+// =============================================
+
+export interface PasswordValidationResult {
+    valid: boolean;
+    error?: string;
+    strength: 'weak' | 'medium' | 'strong';
+}
+
+export function validatePasswordStrength(password: string): PasswordValidationResult {
+    if (!password || typeof password !== 'string') {
+        return { valid: false, error: 'Password wajib diisi', strength: 'weak' };
+    }
+
+    if (password.length < 8) {
+        return { valid: false, error: 'Password minimal 8 karakter', strength: 'weak' };
+    }
+
+    if (password.length > 128) {
+        return { valid: false, error: 'Password maksimal 128 karakter', strength: 'weak' };
+    }
+
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+
+    if (!hasLetter || !hasNumber) {
+        return { valid: false, error: 'Password harus mengandung huruf dan angka', strength: 'weak' };
+    }
+
+    // Determine strength
+    let strength: 'weak' | 'medium' | 'strong' = 'medium';
+    if (password.length >= 12 && hasSpecial && hasUppercase && hasLowercase) {
+        strength = 'strong';
+    } else if (password.length < 10 || !hasSpecial) {
+        strength = 'medium';
+    }
+
+    return { valid: true, strength };
+}
+
+// =============================================
 // Code Generation Validation
 // =============================================
 
@@ -61,11 +145,13 @@ export function validateGenerateCodes(data: unknown): ValidationResult<GenerateC
         return { success: false, error: 'examId must be positive integer or null' };
     }
 
-    // candidateName: optional, string max 255
-    if (body.candidateName !== undefined && body.candidateName !== null) {
-        if (!isString(body.candidateName) || body.candidateName.length > 255) {
+    // ✅ SECURITY: Sanitize candidateName
+    let candidateName: string | null | undefined = body.candidateName as string | null | undefined;
+    if (candidateName !== undefined && candidateName !== null) {
+        if (!isString(candidateName) || candidateName.length > 255) {
             return { success: false, error: 'candidateName must be string max 255 chars' };
         }
+        candidateName = sanitizeForStorage(candidateName);
     }
 
     return {
@@ -74,7 +160,7 @@ export function validateGenerateCodes(data: unknown): ValidationResult<GenerateC
             count: body.count as number,
             examId: body.examId as number | null | undefined,
             expiresInDays: body.expiresInDays as number,
-            candidateName: body.candidateName as string | null | undefined,
+            candidateName,
         }
     };
 }

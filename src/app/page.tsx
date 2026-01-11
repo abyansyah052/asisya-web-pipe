@@ -62,29 +62,30 @@ export default function CandidateLoginPage() {
             backgroundImage: `linear-gradient(to bottom right, rgba(7, 31, 86, 0.92), rgba(9, 147, 169, 0.85)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')`,
           }}
         >
-          {/* Logo - Top Left Corner with Shadow */}
+          {/* Top Section - Portal Info */}
           <div className="relative z-10">
-            <img 
-              src="/kimia-farma-logo.jpg" 
-              alt="Kimia Farma" 
-              className="h-14 lg:h-16 w-auto rounded-xl shadow-xl shadow-black/30" 
-            />
-          </div>
-
-          {/* Main Content - Bottom */}
-          <div className="relative z-10 flex flex-col gap-4">
             <div className="flex items-center gap-2 text-sm font-medium text-[#EF942A]">
               <Users size={18} className="text-[#EF942A]" />
               Portal Khusus Kandidat
             </div>
+          </div>
+
+          {/* Main Content - Bottom */}
+          <div className="relative z-10 flex flex-col gap-4">
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
               Selamat Datang di<br />Portal Asesmen
             </h1>
             <p className="text-white/80 text-base lg:text-lg font-light leading-relaxed max-w-md">
               Platform asesmen psikologi profesional untuk mengukur potensi dan kepribadian Anda secara komprehensif.
             </p>
-            <div className="mt-2 pt-4 border-t border-white/20">
+            {/* Logo + Title in same row - Bottom Right */}
+            <div className="mt-2 pt-4 border-t border-white/20 flex items-center justify-between">
               <span className="text-lg lg:text-xl font-semibold">Kimia Farma Assessment</span>
+              <img 
+                src="/kimia-farma-logo.jpg" 
+                alt="Kimia Farma" 
+                className="h-12 lg:h-14 w-auto rounded-xl shadow-xl shadow-black/30" 
+              />
             </div>
           </div>
         </div>
