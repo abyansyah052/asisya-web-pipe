@@ -128,18 +128,18 @@ pssAnswers.forEach((val, idx) => {
 });
 
 // Determine stress level berdasarkan update.md
-// Kode 1: skor 1-13 = stres ringan
-// Kode 2: skor 14-26 = stres sedang  
-// Kode 3: skor 27-40 = stres berat
+// skor 1-13 = Stress Ringan
+// skor 14-26 = Stress Sedang  
+// skor 27-40 = Stress Berat
 let pssLabel, pssEmoji;
 if (pssTotal <= 13) {
-    pssLabel = 'Kode 1 Stres Ringan';
+    pssLabel = 'Stress Ringan';
     pssEmoji = '✅';
 } else if (pssTotal <= 26) {
-    pssLabel = 'Kode 2 Stres Sedang';
+    pssLabel = 'Stress Sedang';
     pssEmoji = '⚠️';
 } else {
-    pssLabel = 'Kode 3 Stres Berat';
+    pssLabel = 'Stress Berat';
     pssEmoji = '🔴';
 }
 
