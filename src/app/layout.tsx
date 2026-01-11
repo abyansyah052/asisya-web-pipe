@@ -13,11 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KF Portal Test",
-  description: "Kimia Farma Portal Test - Sistem Asesmen Psikologi",
+  title: "Kimia Farma Assessment",
+  description: "Kimia Farma Assessment - Sistem Asesmen Psikologi",
   icons: {
-    icon: "/kimia-farma.jpg",
-    apple: "/kimia-farma.jpg",
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/kimia-farma-logo.jpg",
   },
 };
 

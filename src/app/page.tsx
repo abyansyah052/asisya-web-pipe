@@ -87,7 +87,7 @@ export default function CandidateLoginPage() {
           {/* Logo for mobile */}
           <div className="flex lg:hidden items-center gap-2 mb-6">
             <div className="h-16 w-16 rounded-xl border border-[#0993A9]/30 flex items-center justify-center p-1 overflow-hidden shadow-sm">
-              <img src="/kimia-farma.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-lg" />
+              <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-lg" />
             </div>
             <h2 className="text-lg font-bold text-[#071F56]">Kimia Farma Assessment</h2>
           </div>
