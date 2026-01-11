@@ -40,6 +40,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
     const [status, setStatus] = useState('draft');
     const [displayMode, setDisplayMode] = useState<'per_page' | 'scroll'>('per_page');
     const [thumbnail, setThumbnail] = useState('');
+    const [requireAllAnswers, setRequireAllAnswers] = useState(false);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [examId, setExamId] = useState<string>('');
     const [alertModal, setAlertModal] = useState<{show: boolean, message: string, type: 'success' | 'error'}>({show: false, message: '', type: 'error'});
@@ -65,6 +66,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                 setStatus(data.exam.status);
                 setDisplayMode(data.exam.display_mode || 'per_page');
                 setThumbnail(data.exam.thumbnail || '');
+                setRequireAllAnswers(data.exam.require_all_answers || false);
                 setQuestions(data.questions.map((q: any) => ({
                     id: q.id,
                     text: q.text,
@@ -172,6 +174,7 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                     status,
                     display_mode: displayMode,
                     thumbnail,
+                    require_all_answers: requireAllAnswers,
                     questions,
                     is_special: exam?.is_special || false
                 })
@@ -378,6 +381,27 @@ export default function EditExamPage({ params }: { params: Promise<{ id: string 
                                     </div>
                                 </label>
                             </div>
+                        </div>
+
+                        {/* Require All Answers Option */}
+                        <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <div className="flex items-center h-5 mt-0.5">
+                                    <input
+                                        type="checkbox"
+                                        checked={requireAllAnswers}
+                                        onChange={(e) => setRequireAllAnswers(e.target.checked)}
+                                        className="w-5 h-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-semibold text-gray-900">Wajib Jawab Semua Soal</div>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Jika diaktifkan, peserta harus menjawab semua soal sebelum dapat mengumpulkan ujian. 
+                                        Peserta tidak dapat submit jika masih ada soal yang belum dijawab.
+                                    </p>
+                                </div>
+                            </label>
                         </div>
                     </div>
                 </div>

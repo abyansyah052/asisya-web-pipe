@@ -35,6 +35,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     const [examStarted, setExamStarted] = useState(false);
     const [displayMode, setDisplayMode] = useState<DisplayMode>('per_page');
     const [showNavigator, setShowNavigator] = useState(false);
+    const [requireAllAnswers, setRequireAllAnswers] = useState(false);
     const intervalRef = useRef<NodeJS.Timeout>(undefined);
     const questionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
 
@@ -127,6 +128,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                     setAttemptId(data.attemptId);
                     setTimeLeft(remaining);
                     setDisplayMode(data.exam.display_mode || 'per_page');
+                    setRequireAllAnswers(data.exam.require_all_answers || false);
 
                     // ✅ Load saved answers from server (persist across reconnect)
                     if (data.savedAnswers && Object.keys(data.savedAnswers).length > 0) {
@@ -148,6 +150,20 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     }, [examId, router]);
 
     const submitExam = useCallback(async (auto = false) => {
+        // Check if require_all_answers is enabled and not all questions answered (only for manual submit)
+        if (!auto && requireAllAnswers) {
+            const answeredCount = Object.keys(answers).length;
+            const totalQuestions = questions.length;
+            if (answeredCount < totalQuestions) {
+                const unanswered = totalQuestions - answeredCount;
+                setAlertModal({ 
+                    show: true, 
+                    message: `Anda harus menjawab semua soal sebelum mengumpulkan. Masih ada ${unanswered} soal yang belum dijawab.` 
+                });
+                return;
+            }
+        }
+        
         if (!auto) {
             setConfirmModal(true);
             return;
@@ -168,7 +184,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
         } catch (e) {
             setAlertModal({ show: true, message: 'Terjadi kesalahan saat mengumpulkan ujian' });
         }
-    }, [attemptId, answers, examId, router]);
+    }, [attemptId, answers, examId, router, requireAllAnswers, questions.length]);
 
     const handleConfirmSubmit = useCallback(async () => {
         setConfirmModal(false);
@@ -230,15 +246,21 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
 
     const scrollToQuestion = useCallback((qId: number, idx: number) => {
         setCurrentIdx(idx);
-        const ref = questionRefs.current[qId];
-        if (ref) {
-            ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Only scroll in scroll mode
+        if (displayMode === 'scroll') {
+            // Use setTimeout to ensure state update completes first
+            setTimeout(() => {
+                const ref = questionRefs.current[qId];
+                if (ref) {
+                    ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 50);
         }
         setShowNavigator(false);
-    }, []);
+    }, [displayMode]);
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div></div>;
-    if (!examStarted) return <div className="h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div></div>;
+    if (loading) return <div className="h-screen flex items-center justify-center bg-gradient-to-br from-[#E6FBFB] to-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0993A9]"></div></div>;
+    if (!examStarted) return <div className="h-screen flex items-center justify-center bg-gradient-to-br from-[#E6FBFB] to-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0993A9]"></div></div>;
 
     const currentQ = questions[currentIdx];
 
@@ -257,12 +279,12 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                     const isReview = reviewList.includes(q.id);
                     const isCurrent = i === currentIdx;
                     let baseClass = "h-8 w-full sm:h-9 rounded-lg flex items-center justify-center font-medium text-xs sm:text-sm transition-all ";
-                    if (isCurrent) baseClass += "ring-2 ring-orange-600 ring-offset-1 bg-orange-600 text-white ";
+                    if (isCurrent) baseClass += "ring-2 ring-[#0993A9] ring-offset-1 bg-[#0993A9] text-white ";
                     else if (isReview) baseClass += "bg-yellow-400 text-white ";
                     else if (isAnswered) baseClass += "bg-green-500 text-white ";
                     else baseClass += "bg-gray-100 text-gray-600 hover:bg-gray-200 ";
                     return (
-                        <button key={q.id} onClick={() => isFloating ? scrollToQuestion(q.id, i) : setCurrentIdx(i)} className={baseClass}>
+                        <button key={q.id} onClick={() => scrollToQuestion(q.id, i)} className={baseClass}>
                             {i + 1}
                         </button>
                     );
@@ -284,7 +306,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         </div>
                         <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Perhatian</h3>
                         <p className="text-gray-600 mb-6 text-sm sm:text-base">{alertModal.message}</p>
-                        <button onClick={() => setAlertModal({ show: false, message: '' })} className="w-full py-3 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700">OK</button>
+                        <button onClick={() => setAlertModal({ show: false, message: '' })} className="w-full py-3 bg-[#0993A9] text-white rounded-xl font-semibold hover:bg-[#0ba8c2]">OK</button>
                     </div>
                 </div>
             )}
@@ -299,9 +321,9 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Ujian Berhasil Dikumpulkan!</h2>
                         <p className="text-gray-600 mb-6 text-sm sm:text-base">Hasil ujian Anda sedang diproses.</p>
                         <div className="flex gap-2 items-center justify-center">
-                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
-                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-[#0993A9] rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                            <div className="w-2 h-2 bg-[#0993A9] rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                            <div className="w-2 h-2 bg-[#0993A9] rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                     </div>
                 </div>
@@ -355,7 +377,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                 </div>
             )}
 
-            <div className="min-h-screen flex flex-col bg-slate-50">
+            <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#E6FBFB] to-slate-50">
                 {/* Header - Fixed */}
                 <header className="bg-white border-b px-3 sm:px-6 py-2 sm:py-3 flex justify-between items-center h-14 sm:h-16 fixed w-full z-30 shadow-sm">
                     <div className="flex-1 min-w-0">
@@ -364,7 +386,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             {Object.keys(answers).length}/{questions.length} terjawab
                         </div>
                     </div>
-                    <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-orange-50 text-orange-700'}`}>
+                    <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-[#0993A9]/10 text-[#0993A9]'}`}>
                         <Clock size={16} className="sm:hidden" />
                         <Clock size={20} className="hidden sm:block" />
                         {formatTime(timeLeft)}
@@ -391,7 +413,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                             {/* Question Header */}
                                             <div className="flex justify-between items-center px-4 sm:px-6 py-3 border-b border-slate-100">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="bg-gradient-to-r from-orange-600 to-amber-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                                                    <span className="bg-gradient-to-r from-[#071F56] to-[#0993A9] text-white px-3 py-1 rounded-full text-sm font-bold">
                                                         {idx + 1}
                                                     </span>
                                                     {isAnswered && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">✓ Terjawab</span>}
@@ -416,15 +438,15 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                                                 key={opt.id}
                                                                 onClick={() => handleSelectOption(q.id, opt.id)}
                                                                 className={`flex items-center p-3 sm:p-4 rounded-xl cursor-pointer transition-all border-2 ${isSelected
-                                                                        ? 'border-orange-500 bg-orange-50 shadow-sm'
+                                                                        ? 'border-[#0993A9] bg-[#0993A9]/10 shadow-sm'
                                                                         : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                                                                     }`}
                                                             >
-                                                                <div className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center shrink-0 ${isSelected ? 'border-orange-500 bg-orange-500' : 'border-slate-300'
+                                                                <div className={`w-5 h-5 rounded-full border-2 mr-3 flex items-center justify-center shrink-0 ${isSelected ? 'border-[#0993A9] bg-[#0993A9]' : 'border-slate-300'
                                                                     }`}>
                                                                     {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
                                                                 </div>
-                                                                <span className={`text-sm sm:text-base ${isSelected ? 'text-orange-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
+                                                                <span className={`text-sm sm:text-base ${isSelected ? 'text-[#071F56] font-medium' : 'text-gray-700'}`}>{opt.text}</span>
                                                             </label>
                                                         );
                                                     })}
@@ -439,7 +461,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             <div className="max-w-3xl mx-auto p-4 sm:p-6 md:p-10">
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                                     {/* Question Header */}
-                                    <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-amber-600 text-white">
+                                    <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-[#071F56] to-[#0993A9] text-white">
                                         <span className="font-bold text-sm sm:text-base">Soal {currentIdx + 1} dari {questions.length}</span>
                                         <button
                                             onClick={() => toggleReview(currentQ.id)}
@@ -460,15 +482,15 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                                                         key={opt.id}
                                                         onClick={() => handleSelectOption(currentQ.id, opt.id)}
                                                         className={`flex items-center p-4 sm:p-5 rounded-xl cursor-pointer transition-all border-2 ${isSelected
-                                                                ? 'border-orange-500 bg-orange-50 shadow-md'
+                                                                ? 'border-[#0993A9] bg-[#0993A9]/10 shadow-md'
                                                                 : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                                                             }`}
                                                     >
-                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mr-4 flex items-center justify-center shrink-0 ${isSelected ? 'border-orange-500 bg-orange-500' : 'border-slate-300'
+                                                        <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 mr-4 flex items-center justify-center shrink-0 ${isSelected ? 'border-[#0993A9] bg-[#0993A9]' : 'border-slate-300'
                                                             }`}>
                                                             {isSelected && <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-white rounded-full"></div>}
                                                         </div>
-                                                        <span className={`text-sm sm:text-base md:text-lg ${isSelected ? 'text-orange-900 font-medium' : 'text-gray-700'}`}>{opt.text}</span>
+                                                        <span className={`text-sm sm:text-base md:text-lg ${isSelected ? 'text-[#071F56] font-medium' : 'text-gray-700'}`}>{opt.text}</span>
                                                     </label>
                                                 );
                                             })}

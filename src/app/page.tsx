@@ -53,13 +53,13 @@ export default function CandidateLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-orange-50 to-amber-100">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#E6FBFB] via-[#BEE7F0] to-[#0993A9]/20">
       <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
-        {/* Left Side - Hero with Kimia Farma Orange Theme - Hidden on mobile */}
+        {/* Left Side - Hero with Kimia Farma Navy & Teal Theme - Hidden on mobile */}
         <div
           className="relative hidden lg:flex w-full lg:w-1/2 h-64 lg:h-auto bg-cover bg-center flex-col justify-end p-8 lg:p-12 text-white overflow-hidden"
           style={{
-            backgroundImage: `linear-gradient(to bottom right, rgba(234, 88, 12, 0.75), rgba(194, 65, 12, 0.88)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')`,
+            backgroundImage: `linear-gradient(to bottom right, rgba(7, 31, 86, 0.92), rgba(9, 147, 169, 0.85)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')`,
           }}
         >
           <div className="relative z-10 flex flex-col gap-5">
@@ -75,8 +75,8 @@ export default function CandidateLoginPage() {
             <p className="text-white/80 text-lg font-light leading-relaxed max-w-md">
               Platform asesmen psikologi profesional untuk mengukur potensi dan kepribadian Anda secara komprehensif.
             </p>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-white/70">
-              <Users size={20} className="text-white" />
+            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-[#EF942A]">
+              <Users size={20} className="text-[#EF942A]" />
               Portal Khusus Kandidat
             </div>
           </div>
@@ -86,17 +86,17 @@ export default function CandidateLoginPage() {
         <div className="w-full lg:w-1/2 bg-white p-8 lg:p-16 flex flex-col justify-center">
           {/* Logo for mobile */}
           <div className="flex lg:hidden items-center gap-2 mb-6">
-            <div className="h-16 w-16 rounded-xl border border-orange-200 flex items-center justify-center p-1 overflow-hidden shadow-sm">
+            <div className="h-16 w-16 rounded-xl border border-[#0993A9]/30 flex items-center justify-center p-1 overflow-hidden shadow-sm">
               <img src="/kimia-farma.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-lg" />
             </div>
-            <h2 className="text-lg font-bold text-orange-600">Kimia Farma Assessment</h2>
+            <h2 className="text-lg font-bold text-[#071F56]">Kimia Farma Assessment</h2>
           </div>
 
           <div className="mb-8">
-            <span className="inline-block py-1.5 px-4 rounded-full bg-orange-50 text-orange-600 text-xs font-bold tracking-wide uppercase mb-4">
+            <span className="inline-block py-1.5 px-4 rounded-full bg-[#0993A9]/10 text-[#0993A9] text-xs font-bold tracking-wide uppercase mb-4">
               Portal Peserta
             </span>
-            <h1 className="text-slate-900 tracking-tight text-3xl font-bold leading-tight mb-2">
+            <h1 className="text-[#071F56] tracking-tight text-3xl font-bold leading-tight mb-2">
               Masuk dengan Kode
             </h1>
             <p className="text-slate-500 text-sm font-normal">
@@ -106,19 +106,19 @@ export default function CandidateLoginPage() {
 
           <form onSubmit={handleCandidateLogin} className="flex flex-col gap-5 w-full max-w-[400px]">
             <div className="flex flex-col gap-2">
-              <label className="text-slate-700 text-sm font-semibold">Kode Akses</label>
+              <label className="text-[#071F56] text-sm font-semibold">Kode Akses</label>
               <div className="relative">
                 <input
                   autoFocus
                   type="text"
                   value={candidateCode}
                   onChange={handleCodeChange}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 h-14 px-4 pr-12 text-lg text-slate-900 placeholder-slate-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all outline-none font-mono tracking-widest text-center uppercase"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 h-14 px-4 pr-12 text-lg text-[#071F56] placeholder-slate-400 focus:border-[#0993A9] focus:ring-2 focus:ring-[#0993A9]/20 transition-all outline-none font-mono tracking-widest text-center uppercase"
                   placeholder="XXXX - XXXX - XXXX"
                   maxLength={19}
                   required
                 />
-                <KeyRound size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <KeyRound size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0993A9]" />
               </div>
               <p className="text-slate-400 text-xs text-center mt-1">
                 Format: 16 karakter alfanumerik
@@ -134,7 +134,7 @@ export default function CandidateLoginPage() {
             <button
               type="submit"
               disabled={loading || candidateCode.length < 19}
-              className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white h-12 rounded-xl text-sm font-bold tracking-wide transition-all shadow-lg shadow-orange-500/25 hover:shadow-xl hover:shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-[#071F56] to-[#0993A9] hover:from-[#0a2a70] hover:to-[#0ba8c2] text-white h-12 rounded-xl text-sm font-bold tracking-wide transition-all shadow-lg shadow-[#0993A9]/25 hover:shadow-xl hover:shadow-[#0993A9]/30 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -153,7 +153,7 @@ export default function CandidateLoginPage() {
           <div className="mt-auto pt-8 text-center lg:text-left space-y-2">
             <p className="text-slate-500 text-sm">
               Belum punya kode akses?{' '}
-              <span className="text-orange-600 font-semibold">Hubungi psikolog atau HRD Anda</span>
+              <span className="text-[#0993A9] font-semibold">Hubungi psikolog atau HRD Anda</span>
             </p>
             <p className="text-slate-400 text-xs font-normal">© 2025 Kimia Farma Assessment. Powered by Asisya.</p>
           </div>

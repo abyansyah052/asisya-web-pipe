@@ -109,7 +109,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     duration: exam.duration_minutes,
                     display_mode: exam.display_mode || 'per_page',
                     instructions: exam.instructions || null,
-                    description: exam.description || null
+                    description: exam.description || null,
+                    require_all_answers: exam.require_all_answers || false
                 },
                 attemptId,
                 questions: questionsDid,

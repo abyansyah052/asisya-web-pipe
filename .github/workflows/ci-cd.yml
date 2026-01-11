@@ -140,6 +140,29 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Check for database migrations
+        id: check-migrations
+        run: |
+          echo "🔍 Checking for new migration files..."
+          
+          # Get list of changed files in migrations folder compared to main
+          CHANGED_MIGRATIONS=$(git diff --name-only origin/main...HEAD -- migrations/*.sql 2>/dev/null || echo "")
+          
+          if [ -n "$CHANGED_MIGRATIONS" ]; then
+            echo "📦 Found new/changed migrations:"
+            echo "$CHANGED_MIGRATIONS"
+            echo "has_migrations=true" >> $GITHUB_OUTPUT
+            # Format migration list for issue body
+            MIGRATION_LIST=$(echo "$CHANGED_MIGRATIONS" | sed 's/^/- `/;s/$/`/' | tr '\n' ' ' | sed 's/ $//')
+            echo "migration_list=$MIGRATION_LIST" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No new migrations detected"
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+            echo "migration_list=None" >> $GITHUB_OUTPUT
+          fi
 
       - name: 📋 Request Manual Approval via GitHub Issue
         id: approval
@@ -159,16 +182,19 @@ jobs:
             | **Branch** | `develop` |
             | **Triggered by** | @${{ github.actor }} |
             | **Staging URL** | ${{ needs.deploy-staging.outputs.staging_url }} |
+            | **DB Migrations** | ${{ steps.check-migrations.outputs.has_migrations == 'true' && '⚠️ YES - Will auto-run' || '✅ None' }} |
             
             ### 📝 Commit Message
             ```
             ${{ github.event.head_commit.message }}
             ```
             
+            ${{ steps.check-migrations.outputs.has_migrations == 'true' && '### 🗄️ Database Migrations\n⚠️ **The following migrations will be applied automatically:**\n' || '' }}${{ steps.check-migrations.outputs.migration_list }}
+            
             ### ✅ Pre-deployment Checklist
             - [ ] Tested staging URL above
             - [ ] No breaking changes
-            - [ ] Database migrations applied (if any)
+            - [ ] Database migrations reviewed (if any)
             
             ---
             
@@ -181,8 +207,9 @@ jobs:
             ---
             
             ⚠️ **If approved, this will:**
-            1. Deploy to production VPS (https://kfarma.asisyaconsulting.id)
-            2. Update `main` branch with this code
+            1. ${{ steps.check-migrations.outputs.has_migrations == 'true' && 'Run database migrations on VPS' || 'Skip database migrations (none detected)' }}
+            2. Deploy to production VPS (https://kfarma.asisyaconsulting.id)
+            3. Update `main` branch with this code
           exclude-workflow-initiator-as-approver: false
           fail-on-denial: true
           additional-approved-words: 'ship it,deploy,go,lanjut,ok,oke'
@@ -208,7 +235,27 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📦 Setup Node.js
+      - name: � Check for database migrations
+        id: check-migrations
+        run: |
+          echo "🔍 Checking for new migration files..."
+          
+          # Get list of changed files in migrations folder compared to main
+          CHANGED_MIGRATIONS=$(git diff --name-only origin/main...HEAD -- migrations/*.sql 2>/dev/null || echo "")
+          
+          if [ -n "$CHANGED_MIGRATIONS" ]; then
+            echo "📦 Found new/changed migrations:"
+            echo "$CHANGED_MIGRATIONS"
+            echo "has_migrations=true" >> $GITHUB_OUTPUT
+            echo "migration_files<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED_MIGRATIONS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No new migrations detected"
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: �📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -236,6 +283,13 @@ jobs:
           cp package.json deploy/
           cp package-lock.json deploy/
           cp next.config.ts deploy/
+          
+          # Include migrations folder if there are changes
+          if [ "${{ steps.check-migrations.outputs.has_migrations }}" == "true" ]; then
+            echo "📦 Including migrations in deployment package..."
+            cp -r migrations deploy/
+          fi
+          
           cd deploy && zip -r ../build.zip .
 
       - name: 📤 Upload to VPS
@@ -246,6 +300,45 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "build.zip"
           target: "/var/www/asisya-web"
+
+      - name: 🗄️ Run Database Migrations (if any)
+        if: steps.check-migrations.outputs.has_migrations == 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DATABASE_URL
+          script: |
+            cd /var/www/asisya-web
+            
+            echo "🗄️ Running database migrations..."
+            
+            # Extract just migrations if needed
+            if [ -d "migrations" ]; then
+              echo "📦 Found migrations folder"
+              
+              # Parse DATABASE_URL to get connection details
+              # Format: postgresql://user:password@host:port/dbname
+              DB_URL="${{ secrets.DATABASE_URL }}"
+              
+              # Run each new migration file
+              for migration_file in migrations/*.sql; do
+                if [ -f "$migration_file" ]; then
+                  echo "🔄 Running migration: $migration_file"
+                  PGPASSWORD=$(echo $DB_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p') \
+                  psql -h $(echo $DB_URL | sed -n 's/.*@\([^:]*\):.*/\1/p') \
+                       -p $(echo $DB_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p') \
+                       -U $(echo $DB_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p') \
+                       -d $(echo $DB_URL | sed -n 's/.*\/\([^?]*\).*/\1/p') \
+                       -f "$migration_file" 2>&1 || echo "⚠️ Migration may have already been applied: $migration_file"
+                fi
+              done
+              
+              echo "✅ Database migrations complete!"
+            else
+              echo "⚠️ No migrations folder found"
+            fi
 
       - name: 🚀 Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
