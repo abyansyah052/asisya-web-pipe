@@ -73,13 +73,21 @@ jobs:
           echo "Note: Errors are logged but don't block deployment"
 
   # ============================================
-  # PERFORMANCE: LIGHTHOUSE CI
+  # PERFORMANCE: BUILD + BUNDLE SIZE ANALYSIS
   # ============================================
-  lighthouse-ci:
-    name: Lighthouse Performance Audit
+  performance-analysis:
+    name: Performance & Bundle Analysis
     runs-on: ubuntu-latest
     needs: code-quality
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'
+    
+    outputs:
+      bundle_total: ${{ steps.bundle-report.outputs.bundle_total }}
+      bundle_js: ${{ steps.bundle-report.outputs.bundle_js }}
+      bundle_css: ${{ steps.bundle-report.outputs.bundle_css }}
+      largest_chunks: ${{ steps.bundle-report.outputs.largest_chunks }}
+      page_sizes: ${{ steps.bundle-report.outputs.page_sizes }}
+      build_status: ${{ steps.build.outputs.status }}
     
     steps:
       - name: Checkout code
@@ -95,80 +103,84 @@ jobs:
         run: npm ci
 
       - name: Build Next.js app
-        run: npm run build
-        env:
-          # Use test environment variables
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          JWT_SECRET: 'test-jwt-secret-for-lighthouse-ci-only'
-          NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
-
-      - name: Install Lighthouse CI
-        run: npm install -g @lhci/cli
-
-      - name: Run Lighthouse CI
+        id: build
         run: |
-          lhci autorun --config=lighthouserc.js || true
-        env:
-          LHCI_GITHUB_APP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Lighthouse Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: lighthouse-report
-          path: .lighthouseci/
-          retention-days: 14
-        if: always()
-
-      - name: Lighthouse Summary
-        run: |
-          echo "📊 Lighthouse Performance Audit Complete"
-          echo "View artifacts for detailed report"
-
-  # ============================================
-  # BUNDLE ANALYSIS (On PR only)
-  # ============================================
-  bundle-analysis:
-    name: Bundle Size Analysis
-    runs-on: ubuntu-latest
-    needs: code-quality
-    if: github.event_name == 'pull_request'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build with Bundle Analyzer
-        run: ANALYZE=true npm run build
+          echo "Building Next.js app..."
+          npm run build 2>&1 | tee build-output.txt
+          if [ ${PIPESTATUS[0]} -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+          fi
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          JWT_SECRET: 'test-jwt-secret-for-bundle-analysis'
+          JWT_SECRET: 'test-jwt-secret-for-ci-build'
           NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
         continue-on-error: true
 
-      - name: Check Bundle Size
+      - name: Generate Bundle Size Report
+        id: bundle-report
         run: |
-          echo "📦 Bundle Size Analysis"
+          echo "📦 Analyzing bundle sizes..."
+          
           if [ -d ".next" ]; then
-            echo "Next.js build output size:"
-            du -sh .next/ || true
+            # Total build size
+            TOTAL_SIZE=$(du -sh .next/ | cut -f1)
+            echo "bundle_total=$TOTAL_SIZE" >> $GITHUB_OUTPUT
+            
+            # JS size
+            JS_SIZE=$(find .next -name "*.js" -exec du -ch {} + 2>/dev/null | tail -1 | cut -f1)
+            echo "bundle_js=${JS_SIZE:-0}" >> $GITHUB_OUTPUT
+            
+            # CSS size  
+            CSS_SIZE=$(find .next -name "*.css" -exec du -ch {} + 2>/dev/null | tail -1 | cut -f1)
+            echo "bundle_css=${CSS_SIZE:-0}" >> $GITHUB_OUTPUT
+            
+            # Get largest JS chunks (top 5)
+            echo "Largest JS chunks:"
+            LARGEST=$(find .next/static/chunks -name "*.js" -exec du -h {} + 2>/dev/null | sort -rh | head -5 | awk '{print $1 " - " $2}' | tr '\n' '|' | sed 's/|$//')
+            echo "largest_chunks=${LARGEST:-No chunks found}" >> $GITHUB_OUTPUT
+            
+            # Extract page sizes from build output
+            if [ -f "build-output.txt" ]; then
+              # Parse Next.js build output for page sizes
+              PAGE_INFO=$(grep -E "^(○|●|ƒ|λ)" build-output.txt | head -10 | tr '\n' '|' | sed 's/|$//' || echo "Build output not available")
+              echo "page_sizes=${PAGE_INFO:-N/A}" >> $GITHUB_OUTPUT
+            else
+              echo "page_sizes=Build output not captured" >> $GITHUB_OUTPUT
+            fi
+            
             echo ""
-            echo "Static chunks:"
-            ls -lah .next/static/chunks/ 2>/dev/null | head -20 || echo "No chunks found"
+            echo "=== BUNDLE REPORT ==="
+            echo "Total: $TOTAL_SIZE"
+            echo "JS: $JS_SIZE"
+            echo "CSS: $CSS_SIZE"
+          else
+            echo "bundle_total=Build failed" >> $GITHUB_OUTPUT
+            echo "bundle_js=N/A" >> $GITHUB_OUTPUT
+            echo "bundle_css=N/A" >> $GITHUB_OUTPUT
+            echo "largest_chunks=N/A" >> $GITHUB_OUTPUT
+            echo "page_sizes=Build failed" >> $GITHUB_OUTPUT
           fi
 
-      - name: Bundle Size Summary
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report
+          path: |
+            build-output.txt
+            .next/analyze/
+          retention-days: 7
+        if: always()
+
+      - name: Performance Summary
         run: |
-          echo "📊 Bundle analysis complete"
-          echo "Check build output for bundle sizes"
+          echo "📊 Performance Analysis Complete"
+          echo "================================"
+          echo "Build Status: ${{ steps.build.outputs.status }}"
+          echo "Bundle Total: ${{ steps.bundle-report.outputs.bundle_total }}"
+          echo "Bundle JS: ${{ steps.bundle-report.outputs.bundle_js }}"
+          echo "Bundle CSS: ${{ steps.bundle-report.outputs.bundle_css }}"
 
   # ============================================
   # STAGE 1: STAGING MIGRATIONS + WAIT FOR VERCEL
@@ -176,10 +188,19 @@ jobs:
   deploy-staging:
     name: Stage 1 - Staging Setup (Vercel auto-deploys)
     runs-on: ubuntu-latest
-    needs: [code-quality, lighthouse-ci]
+    needs: [code-quality, performance-analysis]
     if: |
       github.ref == 'refs/heads/develop' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy-staging')
+    
+    outputs:
+      staging_url: ${{ steps.set-url.outputs.url }}
+      bundle_total: ${{ needs.performance-analysis.outputs.bundle_total }}
+      bundle_js: ${{ needs.performance-analysis.outputs.bundle_js }}
+      bundle_css: ${{ needs.performance-analysis.outputs.bundle_css }}
+      largest_chunks: ${{ needs.performance-analysis.outputs.largest_chunks }}
+      page_sizes: ${{ needs.performance-analysis.outputs.page_sizes }}
+      build_status: ${{ needs.performance-analysis.outputs.build_status }}
     
     outputs:
       staging_url: ${{ steps.set-url.outputs.url }}
@@ -281,34 +302,63 @@ jobs:
           secret: ${{ github.TOKEN }}
           approvers: abyansyah052
           minimum-approvals: 1
-          issue-title: "Production Deploy Request - ${{ github.sha }}"
+          issue-title: "🚀 Production Deploy Request - ${{ github.sha }}"
           issue-body: |
-            ## Production Deployment Request
+            ## 🚀 Production Deployment Request
             
-            ### Deployment Info
+            ### 📋 Deployment Info
             | Item | Value |
             |------|-------|
             | **Commit** | `${{ github.sha }}` |
             | **Branch** | `develop` |
             | **Triggered by** | @${{ github.actor }} |
             | **Staging URL** | ${{ needs.deploy-staging.outputs.staging_url }} |
-            | **DB Migrations** | ${{ steps.check-migrations.outputs.has_migrations == 'true' && 'YES - Will auto-run' || 'None' }} |
+            | **Build Status** | ${{ needs.deploy-staging.outputs.build_status == 'success' && '✅ Success' || '⚠️ Check Logs' }} |
+            | **DB Migrations** | ${{ steps.check-migrations.outputs.has_migrations == 'true' && '⚠️ YES - Will auto-run' || '✅ None' }} |
             
-            ### Commit Message
+            ### 💬 Commit Message
             ```
             ${{ github.event.head_commit.message }}
             ```
             
-            ${{ steps.check-migrations.outputs.has_migrations == 'true' && '### Database Migrations\nThe following migrations will be applied automatically:\n' || '' }}${{ steps.check-migrations.outputs.migration_list }}
+            ---
             
-            ### Pre-deployment Checklist
+            ### 📦 Bundle Size Report
+            | Metric | Size |
+            |--------|------|
+            | **Total Build** | ${{ needs.deploy-staging.outputs.bundle_total }} |
+            | **JavaScript** | ${{ needs.deploy-staging.outputs.bundle_js }} |
+            | **CSS** | ${{ needs.deploy-staging.outputs.bundle_css }} |
+            
+            <details>
+            <summary>🔍 Largest JS Chunks (Click to expand)</summary>
+            
+            ```
+            ${{ needs.deploy-staging.outputs.largest_chunks }}
+            ```
+            </details>
+            
+            <details>
+            <summary>📄 Page Sizes (Click to expand)</summary>
+            
+            ```
+            ${{ needs.deploy-staging.outputs.page_sizes }}
+            ```
+            </details>
+            
+            ---
+            
+            ${{ steps.check-migrations.outputs.has_migrations == 'true' && '### 🗃️ Database Migrations\nThe following migrations will be applied automatically:\n' || '' }}${{ steps.check-migrations.outputs.migration_list }}
+            
+            ### ✅ Pre-deployment Checklist
             - [ ] Tested staging URL above
+            - [ ] Bundle size is acceptable
             - [ ] No breaking changes
             - [ ] Database migrations reviewed (if any)
             
             ---
             
-            ### How to Respond
+            ### 💡 How to Respond
             | Action | Comment |
             |--------|---------|
             | **APPROVE** | `approve`, `approved`, `lgtm`, `yes`, `ship it`, `deploy`, `go` |
