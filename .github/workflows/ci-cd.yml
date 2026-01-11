@@ -1,35 +1,34 @@
 name: CI/CD Pipeline (Staging & Production)
 
+# ============================================
+# FLOW:
+# develop → Vercel (staging) → Manual Approval → VPS (production) + Update main
+# main branch = archive only, NO auto deploy
+# ============================================
+
 on:
   push:
     branches: 
-      - develop     # Auto deploy ke Staging (Vercel)
-      - staging     # Auto deploy ke Staging (Vercel)
-      - main        # Production → Hostinger VPS (HARUS via approval)
+      - develop     # Trigger: staging deploy + approval request
   pull_request:
-    branches: [main, develop, staging]
+    branches: [develop]
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment to deploy'
+      action:
+        description: 'Action to perform'
         required: true
-        default: 'staging'
+        default: 'deploy-staging'
         type: choice
         options:
-          - staging
-          - production
-      skip_approval:
-        description: 'Skip manual approval (emergency only)'
-        required: false
-        type: boolean
-        default: false
+          - deploy-staging
+          - deploy-production-emergency
 
 env:
   NODE_VERSION: '20'
 
 jobs:
   # ============================================
-  # LINT & TYPE CHECK (runs on all branches)
+  # LINT & TYPE CHECK
   # ============================================
   lint-and-test:
     name: 🔍 Lint & Type Check
@@ -57,15 +56,15 @@ jobs:
         continue-on-error: true
 
   # ============================================
-  # STAGING DEPLOYMENT → VERCEL
+  # STAGE 1: DEPLOY TO STAGING (VERCEL)
   # ============================================
   deploy-staging:
-    name: 🚀 Deploy to Staging (Vercel)
+    name: 🚀 Stage 1 - Deploy to Staging (Vercel)
     runs-on: ubuntu-latest
     needs: lint-and-test
     if: |
-      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+      github.ref == 'refs/heads/develop' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy-staging')
     
     outputs:
       staging_url: ${{ steps.deploy.outputs.url }}
@@ -104,39 +103,29 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.STAGING_UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.STAGING_UPSTASH_REDIS_REST_TOKEN }}
 
-      - name: 🚀 Deploy to Vercel (Preview)
+      - name: 🚀 Deploy to Vercel
         id: deploy
         run: |
           URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "🌐 Deployed to: $URL"
-
-      - name: 💬 Comment PR with Preview URL
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 🚀 Staging Preview Deployed!\n\n**Preview URL:** ${{ steps.deploy.outputs.url }}\n\n*Deployed from commit: ${context.sha.substring(0, 7)}*`
-            })
+          echo "🌐 Staging deployed to: $URL"
 
       - name: ✅ Staging deployment successful
         run: |
           echo "🎉 Successfully deployed to Vercel Staging!"
           echo "🌐 URL: ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "📋 Next step: Manual approval will be requested for production deployment"
 
   # ============================================
-  # MANUAL APPROVAL FOR PRODUCTION
+  # STAGE 2: REQUEST MANUAL APPROVAL
   # ============================================
-  request-production-approval:
-    name: 📋 Request Production Approval
+  request-approval:
+    name: 📋 Stage 2 - Request Production Approval
     runs-on: ubuntu-latest
-    needs: lint-and-test
+    needs: deploy-staging
     if: |
-      github.ref == 'refs/heads/main' && 
+      github.ref == 'refs/heads/develop' && 
       github.event_name == 'push'
     
     outputs:
@@ -146,21 +135,24 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 📋 Request Manual Approval
+      - name: 📋 Request Manual Approval via GitHub Issue
         id: approval
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ github.TOKEN }}
           approvers: abyansyah052
           minimum-approvals: 1
-          issue-title: "🚀 Production Deployment Request - ${{ github.sha }}"
+          issue-title: "🚀 Production Deploy Request - ${{ github.sha }}"
           issue-body: |
             ## 🚀 Production Deployment Request
             
-            **Commit:** `${{ github.sha }}`
-            **Branch:** `main`
-            **Triggered by:** @${{ github.actor }}
-            **Time:** ${{ github.event.head_commit.timestamp }}
+            ### 📦 Deployment Info
+            | Item | Value |
+            |------|-------|
+            | **Commit** | `${{ github.sha }}` |
+            | **Branch** | `develop` |
+            | **Triggered by** | @${{ github.actor }} |
+            | **Staging URL** | ${{ needs.deploy-staging.outputs.staging_url }} |
             
             ### 📝 Commit Message
             ```
@@ -168,33 +160,36 @@ jobs:
             ```
             
             ### ✅ Pre-deployment Checklist
-            - [ ] Tested on staging environment
+            - [ ] Tested staging URL above
             - [ ] No breaking changes
             - [ ] Database migrations applied (if any)
-            - [ ] Environment variables updated (if needed)
             
             ---
             
-            ### 🎯 Actions
-            - **To APPROVE**: Comment `approve`, `approved`, `lgtm`, or `yes`
-            - **To DENY**: Comment `deny`, `denied`, or `no`
+            ### 🎯 How to Respond
+            | Action | Comment |
+            |--------|---------|
+            | ✅ **APPROVE** | `approve`, `approved`, `lgtm`, `yes`, `ship it`, `deploy`, `go` |
+            | ❌ **DENY** | `deny`, `denied`, `no`, `stop`, `wait`, `hold` |
             
-            ⚠️ **Warning**: This will deploy to production at https://kfarma.asisyaconsulting.id
+            ---
+            
+            ⚠️ **If approved, this will:**
+            1. Deploy to production VPS (https://kfarma.asisyaconsulting.id)
+            2. Update `main` branch with this code
           exclude-workflow-initiator-as-approver: false
           fail-on-denial: true
-          additional-approved-words: 'ship it,deploy,go'
-          additional-denied-words: 'stop,wait,hold'
+          additional-approved-words: 'ship it,deploy,go,lanjut,ok,oke'
+          additional-denied-words: 'stop,wait,hold,tunggu,cancel,batal'
 
   # ============================================
-  # PRODUCTION DEPLOYMENT → HOSTINGER VPS
+  # STAGE 3: DEPLOY TO PRODUCTION (VPS) + UPDATE MAIN
   # ============================================
   deploy-production:
-    name: 🚀 Deploy to Production (Hostinger VPS)
+    name: 🚀 Stage 3 - Deploy to Production (VPS)
     runs-on: ubuntu-latest
-    needs: request-production-approval
-    if: |
-      needs.request-production-approval.outputs.approved == 'approved' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    needs: request-approval
+    if: needs.request-approval.outputs.approved == 'approved'
     
     environment:
       name: production
@@ -203,6 +198,9 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
@@ -263,37 +261,63 @@ jobs:
             pm2 restart asisya-web || pm2 start npm --name "asisya-web" -- start
             pm2 save
             
-            echo "✅ Deploy complete!"
+            echo "✅ VPS Deploy complete!"
+
+      - name: 🔄 Update main branch
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          echo "📥 Fetching all branches..."
+          git fetch origin
+          
+          echo "🔄 Checking out main branch..."
+          git checkout main
+          
+          echo "🔀 Merging develop into main..."
+          git merge origin/develop -m "🚀 Production release: ${{ github.sha }}
+
+          Auto-merged from develop after production approval.
+          
+          Original commit: ${{ github.event.head_commit.message }}"
+          
+          echo "📤 Pushing to main..."
+          git push origin main
+          
+          echo "✅ Main branch updated!"
 
       - name: ✅ Production deployment successful
         run: |
           echo "🎉 Successfully deployed to Production!"
-          echo "🌐 URL: https://kfarma.asisyaconsulting.id"
+          echo "🌐 Production URL: https://kfarma.asisyaconsulting.id"
+          echo "📦 Main branch has been updated"
 
   # ============================================
-  # MANUAL PRODUCTION DEPLOY (via workflow_dispatch)
+  # EMERGENCY PRODUCTION DEPLOY (skip approval)
   # ============================================
-  deploy-production-manual:
-    name: 🚀 Manual Production Deploy
+  deploy-production-emergency:
+    name: 🚨 Emergency Production Deploy
     runs-on: ubuntu-latest
     needs: lint-and-test
     if: |
       github.event_name == 'workflow_dispatch' && 
-      github.event.inputs.environment == 'production'
+      github.event.inputs.action == 'deploy-production-emergency'
     
     environment:
       name: production
       url: https://kfarma.asisyaconsulting.id
     
     steps:
-      - name: 📋 Manual Deploy Info
+      - name: ⚠️ Emergency Deploy Warning
         run: |
-          echo "📋 Manual Production Deploy"
+          echo "⚠️ EMERGENCY DEPLOY - Skipping manual approval!"
           echo "Triggered by: ${{ github.actor }}"
-          echo "Skip approval: ${{ github.event.inputs.skip_approval }}"
 
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
@@ -354,26 +378,21 @@ jobs:
             pm2 restart asisya-web || pm2 start npm --name "asisya-web" -- start
             pm2 save
             
-            echo "✅ Deploy complete!"
+            echo "✅ Emergency Deploy complete!"
 
-      - name: ✅ Production deployment successful
+      - name: 🔄 Update main branch (Emergency)
         run: |
-          echo "🎉 Successfully deployed to Production!"
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          git fetch origin
+          git checkout main
+          git merge origin/develop -m "🚨 Emergency production release: ${{ github.sha }}
+          
+          Emergency deploy by: ${{ github.actor }}"
+          git push origin main
+
+      - name: ✅ Emergency deployment successful
+        run: |
+          echo "🚨 Emergency deployment completed!"
           echo "🌐 URL: https://kfarma.asisyaconsulting.id"
-
-  # ============================================
-  # NOTIFY ON FAILURE
-  # ============================================
-  notify-failure:
-    name: 📢 Notify on Failure
-    runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production, deploy-production-manual]
-    if: failure()
-    
-    steps:
-      - name: 🚨 Deployment Failed
-        run: |
-          echo "❌ Deployment failed!"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Actor: ${{ github.actor }}"
