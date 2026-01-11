@@ -450,6 +450,12 @@ jobs:
           if [ "${{ steps.check-migrations.outputs.has_migrations }}" == "true" ]; then
             echo "Including migrations in deployment package..."
             cp -r migrations deploy/
+            
+            # Also include migration scripts
+            if [ -d "scripts" ]; then
+              mkdir -p deploy/scripts
+              cp scripts/run-migrations.sh deploy/scripts/ 2>/dev/null || true
+            fi
           fi
           
           cd deploy && zip -r ../build.zip .
@@ -463,44 +469,91 @@ jobs:
           source: "build.zip"
           target: "/var/www/asisya-web"
 
-      - name: Run Database Migrations (if any)
+      - name: Run Database Migrations (Smart Tracking)
         if: steps.check-migrations.outputs.has_migrations == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: DATABASE_URL
           script: |
             cd /var/www/asisya-web
             
-            echo "Running database migrations..."
+            echo "=========================================="
+            echo "   Running Database Migrations (Smart)"
+            echo "=========================================="
             
-            # Extract just migrations if needed
-            if [ -d "migrations" ]; then
-              echo "Found migrations folder"
+            # Extract migrations from build.zip first
+            unzip -o build.zip -d temp_extract 2>/dev/null || true
+            if [ -d "temp_extract/migrations" ]; then
+              rm -rf migrations
+              mv temp_extract/migrations ./
+            fi
+            rm -rf temp_extract
+            
+            # Check if migrations folder exists
+            if [ ! -d "migrations" ]; then
+              echo "No migrations folder found"
+              exit 0
+            fi
+            
+            # Use the migration runner script if available
+            if [ -f "scripts/run-migrations.sh" ]; then
+              chmod +x scripts/run-migrations.sh
+              DATABASE_URL="${{ secrets.DATABASE_URL }}" ./scripts/run-migrations.sh
+            else
+              # Fallback: Manual migration with tracking
+              echo "Using fallback migration method..."
               
-              # Parse DATABASE_URL to get connection details
-              # Format: postgresql://user:password@host:port/dbname
+              # Parse DATABASE_URL
               DB_URL="${{ secrets.DATABASE_URL }}"
+              DB_HOST=$(echo $DB_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+              DB_PORT=$(echo $DB_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+              DB_USER=$(echo $DB_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
+              DB_PASS=$(echo $DB_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+              DB_NAME=$(echo $DB_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
               
-              # Run each new migration file
+              export PGPASSWORD="$DB_PASS"
+              
+              # Ensure tracking table exists
+              psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "
+                CREATE TABLE IF NOT EXISTS _migrations (
+                  id SERIAL PRIMARY KEY,
+                  filename VARCHAR(255) NOT NULL UNIQUE,
+                  applied_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                );
+              " 2>/dev/null || true
+              
+              # Get applied migrations
+              APPLIED=$(psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -c "SELECT filename FROM _migrations;" 2>/dev/null | tr -d ' ')
+              
+              # Run each migration
               for migration_file in migrations/*.sql; do
                 if [ -f "$migration_file" ]; then
-                  echo "Running migration: $migration_file"
-                  PGPASSWORD=$(echo $DB_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p') \
-                  psql -h $(echo $DB_URL | sed -n 's/.*@\([^:]*\):.*/\1/p') \
-                       -p $(echo $DB_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p') \
-                       -U $(echo $DB_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p') \
-                       -d $(echo $DB_URL | sed -n 's/.*\/\([^?]*\).*/\1/p') \
-                       -f "$migration_file" 2>&1 || echo "Migration may have already been applied: $migration_file"
+                  filename=$(basename "$migration_file")
+                  
+                  # Skip if already applied
+                  if echo "$APPLIED" | grep -q "^${filename}$"; then
+                    echo "✓ $filename (already applied)"
+                    continue
+                  fi
+                  
+                  echo "▶ Running: $filename"
+                  if psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f "$migration_file" 2>&1; then
+                    # Record migration
+                    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "INSERT INTO _migrations (filename) VALUES ('$filename') ON CONFLICT DO NOTHING;" 2>/dev/null
+                    echo "✓ $filename (applied)"
+                  else
+                    echo "⚠ $filename (may have already been applied)"
+                    psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c "INSERT INTO _migrations (filename) VALUES ('$filename') ON CONFLICT DO NOTHING;" 2>/dev/null
+                  fi
                 fi
               done
-              
-              echo "Database migrations complete!"
-            else
-              echo "No migrations folder found"
             fi
+            
+            echo "=========================================="
+            echo "   Database Migrations Complete!"
+            echo "=========================================="
 
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
