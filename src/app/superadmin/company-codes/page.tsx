@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Building2, Plus, Search, Edit2, Trash2, Check, X, 
-  AlertCircle, RefreshCw, ChevronLeft, ChevronRight
+import {
+  Building2, Plus, Search, Edit2, Trash2, Check, X,
+  AlertCircle, RefreshCw, ChevronLeft, ChevronRight, ArrowLeft
 } from 'lucide-react';
 
 interface CompanyCode {
@@ -30,25 +30,25 @@ export default function CompanyCodesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
+
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedCode, setSelectedCode] = useState<CompanyCode | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState({
     code: '',
     companyName: '',
-    organizationId: ''
+    organizationName: ''
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -56,14 +56,14 @@ export default function CompanyCodesPage() {
     try {
       setLoading(true);
       const res = await fetch('/api/superadmin/company-codes');
-      
+
       if (res.status === 401 || res.status === 403) {
         router.push('/');
         return;
       }
-      
+
       if (!res.ok) throw new Error('Failed to fetch');
-      
+
       const data = await res.json();
       setCompanyCodes(data);
     } catch (err) {
@@ -93,7 +93,7 @@ export default function CompanyCodesPage() {
 
   // Filter data
   const filteredCodes = companyCodes.filter(code => {
-    const matchesSearch = 
+    const matchesSearch =
       code.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       code.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (code.organization_name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
@@ -117,7 +117,7 @@ export default function CompanyCodesPage() {
         body: JSON.stringify({
           code: formData.code,
           companyName: formData.companyName,
-          organizationId: formData.organizationId ? parseInt(formData.organizationId) : null
+          organizationName: formData.organizationName || null
         })
       });
 
@@ -129,7 +129,7 @@ export default function CompanyCodesPage() {
 
       setSuccess('Kode perusahaan berhasil dibuat!');
       setShowAddModal(false);
-      setFormData({ code: '', companyName: '', organizationId: '' });
+      setFormData({ code: '', companyName: '', organizationName: '' });
       fetchCompanyCodes();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan');
@@ -141,7 +141,7 @@ export default function CompanyCodesPage() {
   const handleEditCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCode) return;
-    
+
     setFormLoading(true);
     setError('');
 
@@ -152,7 +152,7 @@ export default function CompanyCodesPage() {
         body: JSON.stringify({
           code: formData.code,
           companyName: formData.companyName,
-          organizationId: formData.organizationId ? parseInt(formData.organizationId) : null,
+          organizationName: formData.organizationName || null,
           isActive: selectedCode.is_active
         })
       });
@@ -176,7 +176,7 @@ export default function CompanyCodesPage() {
 
   const handleDeleteCode = async () => {
     if (!selectedCode) return;
-    
+
     setFormLoading(true);
     setError('');
 
@@ -210,7 +210,7 @@ export default function CompanyCodesPage() {
         body: JSON.stringify({
           code: code.code,
           companyName: code.company_name,
-          organizationId: code.organization_id,
+          organizationName: code.organization_name || null,
           isActive: !code.is_active
         })
       });
@@ -232,7 +232,7 @@ export default function CompanyCodesPage() {
     setFormData({
       code: code.code,
       companyName: code.company_name,
-      organizationId: code.organization_id?.toString() || ''
+      organizationName: code.organization_name || ''
     });
     setShowEditModal(true);
   };
@@ -266,30 +266,32 @@ export default function CompanyCodesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-blue-600" />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Kode Perusahaan</h1>
-                <p className="text-xs text-gray-500">Kelola kode prefix perusahaan (4 digit tengah)</p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                setFormData({ code: '', companyName: '', organizationId: '' });
-                setShowAddModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Kode
-            </button>
+      {/* Navbar */}
+      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/superadmin/dashboard')}
+            className="text-gray-600 hover:text-gray-800"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <img src="/asisya.png" alt="Asisya" className="h-10 w-auto" />
+          <div>
+            <h1 className="text-xl font-bold text-blue-800">Kode Perusahaan</h1>
+            <p className="text-xs text-gray-500">Kelola kode prefix perusahaan (4 digit tengah)</p>
           </div>
         </div>
-      </header>
+        <button
+          onClick={() => {
+            setFormData({ code: '', companyName: '', organizationName: '' });
+            setShowAddModal(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Tambah Kode
+        </button>
+      </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Alerts */}
@@ -371,11 +373,10 @@ export default function CompanyCodesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => toggleStatus(code)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                          code.is_active 
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200' 
-                            : 'bg-red-100 text-red-800 hover:bg-red-200'
-                        }`}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${code.is_active
+                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                          : 'bg-red-100 text-red-800 hover:bg-red-200'
+                          }`}
                       >
                         {code.is_active ? 'Aktif' : 'Nonaktif'}
                       </button>
@@ -472,16 +473,13 @@ export default function CompanyCodesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Organisasi (Opsional)</label>
-                <select
-                  value={formData.organizationId}
-                  onChange={(e) => setFormData({ ...formData, organizationId: e.target.value })}
+                <input
+                  type="text"
+                  value={formData.organizationName}
+                  onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- Pilih Organisasi --</option>
-                  {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
-                  ))}
-                </select>
+                  placeholder="Nama organisasi (opsional)"
+                />
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button
@@ -540,16 +538,13 @@ export default function CompanyCodesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Organisasi (Opsional)</label>
-                <select
-                  value={formData.organizationId}
-                  onChange={(e) => setFormData({ ...formData, organizationId: e.target.value })}
+                <input
+                  type="text"
+                  value={formData.organizationName}
+                  onChange={(e) => setFormData({ ...formData, organizationName: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- Pilih Organisasi --</option>
-                  {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
-                  ))}
-                </select>
+                  placeholder="Nama organisasi (opsional)"
+                />
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button
