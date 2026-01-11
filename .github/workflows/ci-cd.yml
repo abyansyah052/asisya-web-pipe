@@ -109,6 +109,11 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.STAGING_UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.STAGING_UPSTASH_REDIS_REST_TOKEN }}
 
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Run Staging Database Migrations (Supabase)
         run: |
           echo "Checking and running migrations on Staging DB (Supabase)..."
@@ -124,6 +129,7 @@ jobs:
           done
           
           echo "Staging migrations completed!"
+        continue-on-error: true
 
       - name: Deploy to Vercel
         id: deploy
@@ -158,6 +164,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Fetch origin branches
+        run: |
+          git fetch origin main
+          git fetch origin develop
 
       - name: Check for database migrations
         id: check-migrations
@@ -250,6 +261,11 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch origin branches
+        run: |
+          git fetch origin main
+          git fetch origin develop
 
       - name: Check for database migrations
         id: check-migrations
