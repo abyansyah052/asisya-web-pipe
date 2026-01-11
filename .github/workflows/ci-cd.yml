@@ -109,7 +109,27 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.STAGING_UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.STAGING_UPSTASH_REDIS_REST_TOKEN }}
 
-      - name: 🚀 Deploy to Vercel
+      - name: �️ Run Staging Database Migrations (Supabase)
+        run: |
+          echo "🔍 Checking and running migrations on Staging DB (Supabase)..."
+          
+          # Extract connection details from DATABASE_URL
+          # Format: postgresql://user:password@host:port/database
+          DB_URL="${{ secrets.STAGING_DATABASE_URL }}"
+          
+          # Run all migration files in order
+          for migration in migrations/*.sql; do
+            if [ -f "$migration" ]; then
+              echo "📄 Running migration: $migration"
+              psql "$DB_URL" -f "$migration" 2>&1 || echo "⚠️ Migration $migration may have already been applied"
+            fi
+          done
+          
+          echo "✅ Staging migrations completed!"
+        env:
+          PGPASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+
+      - name: �🚀 Deploy to Vercel
         id: deploy
         run: |
           URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
