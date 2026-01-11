@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:strict": "eslint . --ext .ts,.tsx --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "analyze": "ANALYZE=true next build",
+    "lighthouse": "lhci autorun",
+    "test:perf": "npm run build && npm run lighthouse",
+    "ci:check": "npm run lint:strict && npm run typecheck"
   },
   "dependencies": {
     "@types/nodemailer": "^7.0.4",
@@ -26,6 +32,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@lhci/cli": "^0.14.0",
+    "@next/bundle-analyzer": "^15.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

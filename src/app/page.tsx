@@ -57,27 +57,34 @@ export default function CandidateLoginPage() {
       <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Left Side - Hero with Kimia Farma Navy & Teal Theme - Hidden on mobile */}
         <div
-          className="relative hidden lg:flex w-full lg:w-1/2 h-64 lg:h-auto bg-cover bg-center flex-col justify-end p-8 lg:p-12 text-white overflow-hidden"
+          className="relative hidden lg:flex w-full lg:w-1/2 h-64 lg:h-auto bg-cover bg-center flex-col justify-between p-8 lg:p-10 text-white overflow-hidden"
           style={{
             backgroundImage: `linear-gradient(to bottom right, rgba(7, 31, 86, 0.92), rgba(9, 147, 169, 0.85)), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200')`,
           }}
         >
-          <div className="relative z-10 flex flex-col gap-5">
-            <div className="flex items-center gap-4 mb-2">
-              <div className="h-16 w-16 lg:h-20 lg:w-20 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center p-2 lg:p-3 overflow-hidden shadow-lg">
-                <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-xl" />
-              </div>
-              <span className="text-xl lg:text-2xl font-bold">Kimia Farma Assessment</span>
+          {/* Logo - Top Left Corner with Shadow */}
+          <div className="relative z-10">
+            <img 
+              src="/kimia-farma-logo.jpg" 
+              alt="Kimia Farma" 
+              className="h-14 lg:h-16 w-auto rounded-xl shadow-xl shadow-black/30" 
+            />
+          </div>
+
+          {/* Main Content - Bottom */}
+          <div className="relative z-10 flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-[#EF942A]">
+              <Users size={18} className="text-[#EF942A]" />
+              Portal Khusus Kandidat
             </div>
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
-              Selamat Datang di Portal Asesmen
+              Selamat Datang di<br />Portal Asesmen
             </h1>
-            <p className="text-white/80 text-lg font-light leading-relaxed max-w-md">
+            <p className="text-white/80 text-base lg:text-lg font-light leading-relaxed max-w-md">
               Platform asesmen psikologi profesional untuk mengukur potensi dan kepribadian Anda secara komprehensif.
             </p>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-[#EF942A]">
-              <Users size={20} className="text-[#EF942A]" />
-              Portal Khusus Kandidat
+            <div className="mt-2 pt-4 border-t border-white/20">
+              <span className="text-lg lg:text-xl font-semibold">Kimia Farma Assessment</span>
             </div>
           </div>
         </div>
