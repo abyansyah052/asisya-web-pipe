@@ -54,9 +54,9 @@ export async function PUT(
                 }, { status: 400 });
             }
 
-            // Validate code format
-            if (!/^\d{2}$/.test(code)) {
-                return NextResponse.json({ error: 'Kode harus 2 digit angka (00-99)' }, { status: 400 });
+            // Validate code format (4 digits)
+            if (!/^\d{4}$/.test(code)) {
+                return NextResponse.json({ error: 'Kode harus 4 digit angka (0000-9999)' }, { status: 400 });
             }
 
             // Check if new code already exists
