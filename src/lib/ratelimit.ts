@@ -2,19 +2,25 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
 // =============================================
-// OPTIMIZED RATE LIMITING FOR 800 CONCURRENT USERS
+// RATE LIMITING - PRODUCTION ONLY
+// Staging (Vercel) = disabled, Production (VPS) = enabled
 // =============================================
 
-// Initialize Redis connection (only if credentials are provided)
-const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+// Check if this is staging environment (Vercel preview)
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || '';
+const IS_STAGING = APP_URL.includes('vercel.app') || APP_URL.includes('localhost');
+const IS_PRODUCTION = APP_URL.includes('kfarma.asisyaconsulting.id');
+
+// Only initialize Redis for production
+const redis = IS_PRODUCTION && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
   ? new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  })
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
   : null;
 
 // =============================================
-// Rate Limiter Factory with Timeout
+// Rate Limiter Factory
 // =============================================
 
 function createRateLimiter(
@@ -22,28 +28,29 @@ function createRateLimiter(
   windowUnit: 's' | 'm' | 'h',
   prefix: string
 ): Ratelimit | null {
-  if (!redis) return null;
+  // Skip rate limiting for staging
+  if (IS_STAGING || !redis) return null;
 
   return new Ratelimit({
     redis,
     limiter: Ratelimit.slidingWindow(windowSize, `${windowSize} ${windowUnit}` as `${number} s` | `${number} m` | `${number} h`),
-    analytics: false, // Disable analytics for better performance
-    prefix: `rl:${prefix}`,
-    ephemeralCache: new Map(), // Use in-memory cache for performance
+    analytics: false,
+    prefix: `rl:prod:${prefix}`,
+    ephemeralCache: new Map(),
   });
 }
 
-// Login Rate Limiter: 10 attempts per 15 minutes (more generous)
+// Login Rate Limiter: 10 attempts per 15 minutes
 export const loginRateLimiter = createRateLimiter(10, 'm', 'login');
 
 // Submit Exam Rate Limiter: 5 submissions per 5 minutes
 export const submitRateLimiter = createRateLimiter(5, 'm', 'submit');
 
-// API Rate Limiter: 300 requests per minute (for 800 users)
+// API Rate Limiter: 300 requests per minute
 export const apiRateLimiter = createRateLimiter(300, 'm', 'api');
 
 // =============================================
-// Non-blocking Rate Limit Check
+// Rate Limit Check Function
 // =============================================
 
 export async function checkRateLimit(
@@ -51,33 +58,28 @@ export async function checkRateLimit(
   identifier: string,
   timeoutMs: number = 1000
 ): Promise<{ success: boolean; remaining?: number; reset?: number }> {
-  // No limiter configured
-  if (!limiter) {
-    // In production without rate limiter = FAIL CLOSED (reject)
-    if (process.env.NODE_ENV === 'production') {
-      console.error('🚨 CRITICAL: Rate limiter not configured in production');
-      return { success: false };
-    }
-    // In development = allow (for testing)
-    console.warn('⚠️ Rate limiting bypassed in development mode');
+  
+  // Staging = always allow (no rate limiting)
+  if (IS_STAGING) {
     return { success: true };
   }
 
+  // Production without limiter configured = FAIL CLOSED
+  if (!limiter) {
+    console.error('🚨 CRITICAL: Rate limiter not configured in production');
+    return { success: false };
+  }
+
   try {
-    // Race between rate limit check and timeout
     const result = await Promise.race([
       limiter.limit(identifier),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
     ]);
 
-    // Timeout occurred - FAIL CLOSED in production
+    // Timeout = block in production
     if (result === null) {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('🚨 Rate limit timeout - blocking request');
-        return { success: false };
-      }
-      console.warn('⚠️ Rate limit timeout, allowing in dev');
-      return { success: true };
+      console.error('🚨 Rate limit timeout - blocking request');
+      return { success: false };
     }
 
     return {
@@ -86,11 +88,24 @@ export async function checkRateLimit(
       reset: result.reset,
     };
   } catch (error) {
-    // Redis error - FAIL CLOSED in production
     console.error('❌ Rate limit error:', error);
-    if (process.env.NODE_ENV === 'production') {
-      return { success: false };
-    }
-    return { success: true };
+    return { success: false };
   }
+}
+
+// =============================================
+// Helper: Get client IP from request headers
+// =============================================
+
+export function getClientIP(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIP = request.headers.get('x-real-ip');
+  
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+  if (realIP) {
+    return realIP;
+  }
+  return 'unknown';
 }
