@@ -40,9 +40,9 @@ export default function CandidateLoginPage() {
     }
   };
 
-  // Format code input with dashes - 16 characters
+  // Format code input with dashes - 12 characters
   const formatCode = (value: string) => {
-    const cleaned = value.replace(/[^A-Z0-9]/g, '').substring(0, 16);
+    const cleaned = value.replace(/[^A-Z0-9]/g, '').substring(0, 12);
     const parts = cleaned.match(/.{1,4}/g) || [];
     return parts.join('-');
   };
@@ -121,7 +121,7 @@ export default function CandidateLoginPage() {
                   value={candidateCode}
                   onChange={handleCodeChange}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 h-14 px-4 pr-12 text-lg text-[#071F56] placeholder-slate-400 focus:border-[#0993A9] focus:ring-2 focus:ring-[#0993A9]/20 transition-all outline-none font-mono tracking-widest text-center uppercase"
-                  placeholder="XXXX - XXXX - XXXX"
+                  placeholder="MMYY - XXXX - NNNN"
                   maxLength={19}
                   required
                 />
