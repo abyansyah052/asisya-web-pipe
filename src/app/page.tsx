@@ -63,11 +63,11 @@ export default function CandidateLoginPage() {
           }}
         >
           <div className="relative z-10 flex flex-col gap-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center p-2 overflow-hidden">
-                <img src="/kimia-farma.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-xl" />
+            <div className="flex items-center gap-4 mb-2">
+              <div className="h-16 w-16 lg:h-20 lg:w-20 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center p-2 lg:p-3 overflow-hidden shadow-lg">
+                <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-xl" />
               </div>
-              <span className="text-xl font-bold">Kimia Farma Assessment</span>
+              <span className="text-xl lg:text-2xl font-bold">Kimia Farma Assessment</span>
             </div>
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
               Selamat Datang di Portal Asesmen
