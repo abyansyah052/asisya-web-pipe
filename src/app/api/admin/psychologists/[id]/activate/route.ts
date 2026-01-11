@@ -30,7 +30,7 @@ export async function PATCH(
         const client = await pool.connect();
         try {
             // Verify the psychologist exists and can be managed by this admin
-            let query = 'SELECT id, organization_id FROM users WHERE id = $1 AND role = $2';
+            const query = 'SELECT id, organization_id FROM users WHERE id = $1 AND role = $2';
             const psychResult = await client.query(query, [psychologistId, 'psychologist']);
 
             if (psychResult.rows.length === 0) {

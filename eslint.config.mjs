@@ -12,7 +12,7 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    ignores: [".next/**", "node_modules/**", "out/**", "build/**"],
+    ignores: [".next/**", "node_modules/**", "out/**", "build/**", "scripts/**"],
   },
   {
     rules: {
@@ -32,6 +32,8 @@ const eslintConfig = [
       "@typescript-eslint/no-unsafe-function-type": "off",
       // Allow wrapper object types
       "@typescript-eslint/no-wrapper-object-types": "off",
+      // Allow require() in script files
+      "@typescript-eslint/no-require-imports": "off",
     }
   }
 ];

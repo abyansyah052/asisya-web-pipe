@@ -128,7 +128,7 @@ export default function CandidateLoginPage() {
                 <KeyRound size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0993A9]" />
               </div>
               <p className="text-slate-400 text-xs text-center mt-1">
-                Format: 16 karakter alfanumerik
+                Format: 12 karakter alfanumerik
               </p>
             </div>
 

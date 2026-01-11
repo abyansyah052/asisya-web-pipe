@@ -88,7 +88,7 @@ export async function GET(
             // Get all answers for these attempts
             const attemptIds = attempts.map((a: any) => a.attempt_id);
 
-            let answersMap: Record<number, Record<number, { answer: string; is_correct: boolean }>> = {};
+            const answersMap: Record<number, Record<number, { answer: string; is_correct: boolean }>> = {};
 
             if (attemptIds.length > 0) {
                 const answersRes = await client.query(
@@ -117,7 +117,7 @@ export async function GET(
 
             // Get user profiles for tab 2
             const userIds = attempts.map((a: any) => a.user_id);
-            let profilesMap: Record<number, any> = {};
+            const profilesMap: Record<number, any> = {};
 
             if (userIds.length > 0) {
                 const profilesRes = await client.query(
@@ -217,7 +217,11 @@ export async function GET(
                     });
 
                     // Calculate SRQ-29 score if we have 29 answers
-                    let srqResult = { totalScore: 0, positiveCategories: [] as string[], overallStatus: 'normal' as const };
+                    let srqResult: { totalScore: number; outputText: string; overallStatus: 'normal' | 'abnormal' } = { 
+                        totalScore: 0, 
+                        outputText: 'Normal. Tidak terdapat gejala psikologis seperti cemas dan depresi. Tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik, gejala PTSD/gejala stress setelah trauma',
+                        overallStatus: 'normal' 
+                    };
                     if (answerValues.length === 29) {
                         try {
                             srqResult = calculateSRQ29Score(answerValues);
@@ -231,8 +235,8 @@ export async function GET(
                         attempt.full_name || attempt.username || '-',
                         profile.gender || '-',
                         srqResult.totalScore,
-                        srqResult.positiveCategories.length > 0 ? srqResult.positiveCategories.join(', ') : 'Normal',
-                        srqResult.overallStatus === 'normal' ? 'Normal' : 'Perlu Perhatian'
+                        srqResult.outputText,
+                        srqResult.overallStatus === 'normal' ? 'Normal' : 'Tidak Normal'
                     ]);
                 });
 

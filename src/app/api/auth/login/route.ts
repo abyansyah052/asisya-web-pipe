@@ -31,7 +31,8 @@ function sanitizeInput(input: string): string {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        let { username, password } = body;
+        let { username } = body;
+        const { password } = body;
 
         if (!username || !password) {
             return NextResponse.json(

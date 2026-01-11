@@ -31,7 +31,7 @@ export async function GET() {
                 ORDER BY e.created_at DESC
             `;
 
-            const result = await client.query(query, [session.userId]);
+            const result = await client.query(query, [session.id]);
             return NextResponse.json(result.rows);
         } finally {
             client.release();
