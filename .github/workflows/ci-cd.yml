@@ -202,9 +202,6 @@ jobs:
       page_sizes: ${{ needs.performance-analysis.outputs.page_sizes }}
       build_status: ${{ needs.performance-analysis.outputs.build_status }}
     
-    outputs:
-      staging_url: ${{ steps.set-url.outputs.url }}
-    
     environment:
       name: staging
       url: https://asisya-web-pipe.vercel.app
