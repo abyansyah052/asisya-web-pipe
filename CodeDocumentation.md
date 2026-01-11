@@ -4,7 +4,25 @@
 
 ---
 
-## 📁 PROJECT STRUCTURE
+## � TABLE OF CONTENTS
+
+1. [Project Structure](#-project-structure)
+2. [Configuration Files](#-configuration-files)
+3. [Core Libraries](#-core-libraries-srclib)
+4. [Authentication APIs](#-authentication-api-routes)
+5. [Candidate APIs](#-candidate-api-routes)
+6. [Settings API](#-settings-api)
+7. [Admin APIs](#-admin-api-routes)
+8. [Psychologist APIs](#-psychologist-api-routes)
+9. [Super Admin APIs](#-super-admin-api-routes)
+10. [Frontend Pages](#-frontend-dashboard-pages)
+11. [Color Scheme](#-color-scheme-kimia-farma-branding)
+12. [CI/CD Configuration](#-cicd-configuration)
+13. [Performance Testing](#-performance-testing)
+
+---
+
+## �📁 PROJECT STRUCTURE
 
 ```
 src/
@@ -1427,6 +1445,1102 @@ CREATE INDEX idx_exam_assessors_admin ON exam_assessors(admin_id);
 | Exam Submit     | 300ms   | 80ms   | 73% faster  |
 | Questions API   | 200ms   | 50ms   | 75% faster  |
 | Settings API    | 1700ms  | 100ms  | 94% faster  |
+
+---
+
+## 👨‍💼 ADMIN API ROUTES
+
+### src/app/api/admin/codes/route.ts - List Codes
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessAdminFeatures } from '@/lib/roles';
+
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const query = `
+                SELECT cc.id, cc.code, cc.created_at, cc.expires_at, cc.used_at,
+                       cc.is_active, cc.current_uses, cc.max_uses,
+                       COALESCE(cc.metadata->>'candidate_name', cc.metadata->>'name') as candidate_name,
+                       e.title as exam_title,
+                       u.id as used_by_user_id, u.email as used_by_email
+                FROM candidate_codes cc
+                LEFT JOIN exams e ON cc.exam_id = e.id
+                LEFT JOIN users u ON cc.candidate_id = u.id
+                WHERE cc.is_active = true
+                ORDER BY cc.created_at DESC
+            `;
+            const result = await client.query(query);
+            return NextResponse.json({ codes: result.rows });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error fetching codes:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/admin/codes/generate/route.ts - Generate Codes
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession } from '@/lib/auth';
+import { canAccessAdminFeatures } from '@/lib/roles';
+
+function generateCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 16; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized - Admin only' }, { status: 401 });
+        }
+
+        const { count = 1, examId, expiresInDays = 7, candidateName } = await req.json();
+
+        if (count < 1 || count > 100) {
+            return NextResponse.json({ error: 'Jumlah kode harus antara 1-100' }, { status: 400 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const codes: string[] = [];
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+            for (let i = 0; i < count; i++) {
+                let code: string;
+                let isUnique = false;
+
+                while (!isUnique) {
+                    code = generateCode();
+                    const existing = await client.query('SELECT id FROM candidate_codes WHERE code = $1', [code]);
+                    if (existing.rows.length === 0) {
+                        isUnique = true;
+                        const metadata = candidateName && count === 1 ? JSON.stringify({ name: candidateName }) : '{}';
+
+                        await client.query(
+                            `INSERT INTO candidate_codes (code, created_by, admin_id, exam_id, expires_at, metadata)
+                             VALUES ($1, $2, $3, $4, $5, $6)`,
+                            [code, session.id, session.organizationId || null, examId || null, expiresAt.toISOString(), metadata]
+                        );
+                        codes.push(code);
+                    }
+                }
+            }
+
+            return NextResponse.json({ success: true, codes, expiresAt: expiresAt.toISOString() });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/admin/exams/route.ts - List Exams
+```typescript
+import { NextResponse } from 'next/server';
+import pool from '@/lib/db';
+import { cookies } from 'next/headers';
+import { getSession } from '@/lib/auth';
+import { canAccessPsychologistFeatures } from '@/lib/roles';
+
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessPsychologistFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const query = `
+                SELECT e.*, COUNT(q.id) as question_count 
+                FROM exams e
+                LEFT JOIN questions q ON e.id = q.exam_id
+                GROUP BY e.id
+                ORDER BY e.created_at DESC
+            `;
+            const result = await client.query(query);
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+---
+
+*Continued in next section...*
+
+### src/app/api/admin/stats/route.ts - Admin Statistics
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessAdminFeatures } from '@/lib/roles';
+
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            let organization = null;
+            let orgId = null;
+
+            try {
+                const orgResult = await client.query(
+                    `SELECT * FROM organizations WHERE admin_id = $1`,
+                    [session.id]
+                );
+                if (orgResult.rows.length > 0) {
+                    organization = orgResult.rows[0];
+                    orgId = organization.id;
+                }
+            } catch (e) {
+                console.log('Organizations table query error:', e);
+            }
+
+            // Count queries - optimized for performance
+            const [psychologists, candidates, exams, sessions] = await Promise.all([
+                orgId
+                    ? client.query(`SELECT COUNT(*) as count FROM users WHERE role = 'psychologist' AND organization_id = $1`, [orgId])
+                    : client.query(`SELECT COUNT(*) as count FROM users WHERE role = 'psychologist'`),
+                client.query(`SELECT COUNT(*) as count FROM users WHERE role = 'candidate'`),
+                client.query(`SELECT COUNT(*) as count FROM exams`),
+                client.query(`SELECT COUNT(*) as count FROM exam_attempts WHERE status = 'in_progress'`)
+            ]);
+
+            const stats = {
+                totalPsychologists: parseInt(psychologists.rows[0].count),
+                totalCandidates: parseInt(candidates.rows[0].count),
+                totalExams: parseInt(exams.rows[0].count),
+                activeSessions: parseInt(sessions.rows[0].count)
+            };
+
+            return NextResponse.json({ stats, organization });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error fetching admin stats:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/admin/psychologists/route.ts - Manage Psychologists
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessAdminFeatures } from '@/lib/roles';
+import bcrypt from 'bcryptjs';
+
+// GET - List all psychologists under this admin
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            let query: string;
+            let params: (string | number)[] = [];
+
+            if (session.role === ROLES.SUPER_ADMIN) {
+                // Super admin sees all psychologists
+                query = `
+                    SELECT u.id, u.username, u.email, u.full_name, u.is_active, u.created_at,
+                           COUNT(DISTINCT cc.id) as exam_count,
+                           COUNT(DISTINCT cc.candidate_id) as candidate_count
+                    FROM users u
+                    LEFT JOIN candidate_codes cc ON cc.created_by = u.id
+                    WHERE u.role = 'psychologist'
+                    GROUP BY u.id
+                    ORDER BY u.created_at DESC
+                `;
+            } else {
+                // Admin sees psychologists in their org
+                let orgId = null;
+                const orgResult = await client.query(
+                    'SELECT id FROM organizations WHERE admin_id = $1',
+                    [session.id]
+                );
+                orgId = orgResult.rows[0]?.id;
+
+                if (orgId) {
+                    query = `
+                        SELECT u.id, u.username, u.email, u.full_name, u.is_active, u.created_at,
+                               COUNT(DISTINCT cc.id) as exam_count,
+                               COUNT(DISTINCT cc.candidate_id) as candidate_count
+                        FROM users u
+                        LEFT JOIN candidate_codes cc ON cc.created_by = u.id
+                        WHERE u.role = 'psychologist' AND (u.organization_id = $1 OR u.organization_id IS NULL)
+                        GROUP BY u.id
+                        ORDER BY u.is_active DESC, u.created_at DESC
+                    `;
+                    params = [orgId];
+                } else {
+                    query = `SELECT u.id, u.username, u.email, u.full_name, u.is_active FROM users u WHERE u.role = 'psychologist'`;
+                }
+            }
+
+            const result = await client.query(query, params);
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+
+// POST - Create new psychologist
+export async function POST(req: NextRequest) {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { username, email, password, fullName } = await req.json();
+
+        if (!username || !email || !password) {
+            return NextResponse.json({ error: 'Username, email, dan password wajib diisi' }, { status: 400 });
+        }
+
+        const client = await pool.connect();
+        try {
+            // Check if username/email exists
+            const existingUser = await client.query(
+                'SELECT id FROM users WHERE username = $1 OR email = $2',
+                [username, email]
+            );
+            if (existingUser.rows.length > 0) {
+                return NextResponse.json({ error: 'Username atau email sudah digunakan' }, { status: 400 });
+            }
+
+            // Hash password
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            // Create psychologist
+            const result = await client.query(
+                `INSERT INTO users (username, email, password_hash, full_name, role, is_active, created_at)
+                 VALUES ($1, $2, $3, $4, 'psychologist', true, NOW())
+                 RETURNING id, username, email, full_name, created_at`,
+                [username, email, hashedPassword, fullName || null]
+            );
+
+            return NextResponse.json({ success: true, psychologist: result.rows[0] });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+---
+
+## 🧑‍⚕️ PSYCHOLOGIST API ROUTES
+
+### src/app/api/psychologist/exams/route.ts - List Assigned Exams
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessPsychologistFeatures } from '@/lib/roles';
+
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessPsychologistFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const query = `
+                SELECT 
+                    e.*, 
+                    COUNT(DISTINCT q.id) as question_count,
+                    COUNT(DISTINCT cg.candidate_id) as assigned_candidates,
+                    CASE WHEN COUNT(DISTINCT cg.candidate_id) > 0 THEN true ELSE false END as is_assigned_to_me
+                FROM exams e
+                LEFT JOIN questions q ON e.id = q.exam_id
+                LEFT JOIN candidate_groups cg ON e.id = cg.exam_id AND cg.assessor_id = $1
+                GROUP BY e.id
+                ORDER BY e.created_at DESC
+            `;
+
+            const result = await client.query(query, [session.userId]);
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/psychologist/candidates/route.ts - List Candidates
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessPsychologistFeatures } from '@/lib/roles';
+
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessPsychologistFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const query = `
+                SELECT 
+                    u.id, u.full_name, u.email, u.created_at,
+                    COUNT(DISTINCT ea.id) as exam_count,
+                    COUNT(DISTINCT CASE WHEN ea.status = 'completed' THEN ea.id END) as completed_count,
+                    MAX(CASE WHEN ea.status = 'completed' THEN ea.end_time END) as last_exam_date
+                FROM users u
+                LEFT JOIN exam_attempts ea ON u.id = ea.user_id
+                WHERE u.role = $1
+                GROUP BY u.id
+                ORDER BY u.created_at DESC
+            `;
+            
+            const result = await client.query(query, [ROLES.CANDIDATE]);
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/psychologist/codes/route.ts - Manage Codes
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessPsychologistFeatures } from '@/lib/roles';
+
+// Generate random code like XXXX-XXXX-XXXX
+function generateCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 12; i++) {
+        if (i > 0 && i % 4 === 0) code += '-';
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+// GET - List all codes created by this psychologist
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessPsychologistFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const client = await pool.connect();
+        try {
+            let query: string;
+            let params: (string | number)[] = [];
+
+            if (session.role === ROLES.SUPER_ADMIN || session.role === ROLES.ADMIN) {
+                // Super admin and admin can see all codes
+                query = `
+                    SELECT cc.*, e.title as exam_title, cc.metadata->>'name' as candidate_name
+                    FROM candidate_codes cc
+                    LEFT JOIN exams e ON cc.exam_id = e.id
+                    ORDER BY cc.created_at DESC
+                `;
+            } else {
+                // Psychologist sees only their codes
+                query = `
+                    SELECT cc.*, e.title as exam_title, cc.metadata->>'name' as candidate_name
+                    FROM candidate_codes cc
+                    LEFT JOIN exams e ON cc.exam_id = e.id
+                    WHERE cc.created_by = $1
+                    ORDER BY cc.created_at DESC
+                `;
+                params = [session.id];
+            }
+
+            const result = await client.query(query, params);
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}
+```
+
+---
+
+## 🔐 SUPER ADMIN API ROUTES
+
+### src/app/api/superadmin/stats/route.ts - Super Admin Statistics
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessSuperAdminFeatures } from '@/lib/roles';
+
+export async function GET() {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('user_session');
+    const session = await getSession(sessionCookie?.value);
+
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!canAccessSuperAdminFeatures(session.role)) {
+        return NextResponse.json({ error: 'Forbidden - Super Admin only' }, { status: 403 });
+    }
+
+    try {
+        // Get all statistics in parallel
+        const [adminsResult, psychResult, candidatesResult, examsResult] = await Promise.all([
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', [ROLES.ADMIN]),
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', [ROLES.PSYCHOLOGIST]),
+            pool.query('SELECT COUNT(*) as count FROM users WHERE role = $1', [ROLES.CANDIDATE]),
+            pool.query('SELECT COUNT(*) as count FROM exams')
+        ]);
+
+        let totalOrganizations = 0;
+        try {
+            const orgsResult = await pool.query('SELECT COUNT(*) as count FROM organizations');
+            totalOrganizations = parseInt(orgsResult.rows[0].count);
+        } catch { /* Table might not exist */ }
+
+        return NextResponse.json({
+            totalAdmins: parseInt(adminsResult.rows[0].count),
+            totalPsychologists: parseInt(psychResult.rows[0].count),
+            totalCandidates: parseInt(candidatesResult.rows[0].count),
+            totalExams: parseInt(examsResult.rows[0].count),
+            totalOrganizations
+        });
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/superadmin/users/route.ts - List All Users
+```typescript
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession } from '@/lib/auth';
+
+export async function GET() {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('user_session');
+    const session = await getSession(sessionCookie?.value);
+
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Forbidden - Super Admin only' }, { status: 403 });
+    }
+
+    try {
+        // Get all users except super_admin
+        const result = await pool.query(
+            `SELECT id, username, email, full_name, role, profile_completed, is_active, created_at 
+             FROM users 
+             WHERE role IN ($1, $2, $3)
+             ORDER BY role, created_at DESC`,
+            ['admin', 'psychologist', 'candidate']
+        );
+
+        return NextResponse.json({ users: result.rows });
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/superadmin/clients/route.ts - Manage Admin Clients
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessSuperAdminFeatures } from '@/lib/roles';
+import bcrypt from 'bcryptjs';
+
+// GET - List all admin clients
+export async function GET(_request: NextRequest) {
+    try {
+        const session = await getSession();
+
+        if (!session || !canAccessSuperAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        }
+
+        const result = await pool.query(`
+            SELECT 
+                u.id, u.username, u.email, u.full_name,
+                o.name as organization_name,
+                u.created_at,
+                (SELECT COUNT(*) FROM users WHERE organization_id = u.organization_id AND role = $1) as psychologist_count,
+                (SELECT COUNT(*) FROM users WHERE organization_id = u.organization_id AND role = $2) as candidate_count,
+                (SELECT COUNT(*) FROM exams WHERE created_by IN (
+                    SELECT id FROM users WHERE organization_id = u.organization_id
+                )) as exam_count
+            FROM users u
+            LEFT JOIN organizations o ON u.organization_id = o.id
+            WHERE u.role = $3
+            ORDER BY u.created_at DESC
+        `, [ROLES.PSYCHOLOGIST, ROLES.CANDIDATE, ROLES.ADMIN]);
+
+        return NextResponse.json(result.rows);
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+// POST - Create new admin client with organization
+export async function POST(request: NextRequest) {
+    try {
+        const session = await getSession();
+
+        if (!session || !canAccessSuperAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        }
+
+        const { username, email, password, fullName, organizationName } = await request.json();
+
+        if (!username || !email || !password || !organizationName) {
+            return NextResponse.json({ error: 'Semua field wajib harus diisi' }, { status: 400 });
+        }
+
+        // Check if exists
+        const existingUser = await pool.query(
+            'SELECT id FROM users WHERE username = $1 OR email = $2',
+            [username, email]
+        );
+        if (existingUser.rows.length > 0) {
+            return NextResponse.json({ error: 'Username atau email sudah digunakan' }, { status: 400 });
+        }
+
+        // Transaction: Create org → quota → admin user
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            const orgResult = await client.query(
+                'INSERT INTO organizations (name) VALUES ($1) RETURNING id',
+                [organizationName]
+            );
+            const organizationId = orgResult.rows[0].id;
+
+            await client.query(
+                'INSERT INTO admin_quotas (organization_id, total_exam_slots, used_exam_slots) VALUES ($1, $2, $3)',
+                [organizationId, 100, 0]
+            );
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const userResult = await client.query(
+                `INSERT INTO users (username, email, password_hash, full_name, role, organization_id)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [username, email, hashedPassword, fullName || null, ROLES.ADMIN, organizationId]
+            );
+
+            await client.query('COMMIT');
+            return NextResponse.json({ success: true, id: userResult.rows[0].id, organizationId }, { status: 201 });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+```
+
+### src/app/api/superadmin/quotas/route.ts - Manage Admin Quotas
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import pool from '@/lib/db';
+import { getSession, ROLES } from '@/lib/auth';
+import { canAccessSuperAdminFeatures } from '@/lib/roles';
+
+// GET - List all quotas for all admins
+export async function GET() {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessSuperAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const result = await client.query(`
+                SELECT 
+                    u.id as admin_id, u.username as admin_username, u.full_name as admin_name, u.email as admin_email,
+                    o.id as organization_id, o.name as organization_name,
+                    COALESCE(aq.max_psychologists, 10) as max_psychologists,
+                    COALESCE(aq.max_candidates, 100) as max_candidates,
+                    COALESCE(aq.max_exams, 50) as max_exams,
+                    COALESCE(aq.current_psychologists, 0) as current_psychologists,
+                    COALESCE(aq.current_candidates, 0) as current_candidates,
+                    COALESCE(aq.current_exams, 0) as current_exams,
+                    COALESCE(aq.token_balance, 0) as token_balance,
+                    COALESCE(aq.tokens_used, 0) as tokens_used,
+                    aq.valid_until,
+                    (SELECT COUNT(*) FROM users WHERE organization_id = o.id AND role = 'psychologist') as actual_psychologists,
+                    (SELECT COUNT(DISTINCT cc.candidate_id) FROM candidate_codes cc 
+                     JOIN users cr ON cc.created_by = cr.id 
+                     WHERE cr.organization_id = o.id AND cc.candidate_id IS NOT NULL) as actual_candidates
+                FROM users u
+                LEFT JOIN organizations o ON o.admin_id = u.id
+                LEFT JOIN admin_quotas aq ON aq.admin_id = u.id
+                WHERE u.role = 'admin'
+                ORDER BY u.username ASC
+            `);
+
+            return NextResponse.json(result.rows);
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+// POST - Create or update quota for an admin (Upsert)
+export async function POST(request: NextRequest) {
+    try {
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
+
+        if (!session || !canAccessSuperAdminFeatures(session.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+        }
+
+        const { adminId, maxPsychologists, maxCandidates, maxExams, tokenBalance, validUntil } = await request.json();
+
+        if (!adminId) {
+            return NextResponse.json({ error: 'adminId is required' }, { status: 400 });
+        }
+
+        const client = await pool.connect();
+        try {
+            const result = await client.query(`
+                INSERT INTO admin_quotas (admin_id, max_psychologists, max_candidates, max_exams, token_balance, valid_until)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (admin_id) DO UPDATE SET
+                    max_psychologists = EXCLUDED.max_psychologists,
+                    max_candidates = EXCLUDED.max_candidates,
+                    max_exams = EXCLUDED.max_exams,
+                    token_balance = EXCLUDED.token_balance,
+                    valid_until = EXCLUDED.valid_until,
+                    updated_at = NOW()
+                RETURNING *
+            `, [adminId, maxPsychologists || 10, maxCandidates || 100, maxExams || 50, tokenBalance || 0, validUntil || null]);
+
+            return NextResponse.json({ success: true, quota: result.rows[0] });
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+```
+
+---
+
+## 🖥️ FRONTEND DASHBOARD PAGES
+
+### src/app/admin/dashboard/page.tsx - Admin Dashboard
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Users, UserCog, LogOut, ClipboardList, Building2, BarChart3, Settings, KeyRound } from 'lucide-react';
+
+interface DashboardStats {
+    totalPsychologists: number;
+    totalCandidates: number;
+    totalExams: number;
+    activeSessions: number;
+}
+
+interface Quota {
+    maxPsychologists: number;
+    maxCandidates: number;
+    maxExams: number;
+    usedPsychologists: number;
+    usedCandidates: number;
+    usedExams: number;
+    validUntil: string | null;
+}
+
+export default function AdminOwnerDashboard() {
+    const router = useRouter();
+    const [stats, setStats] = useState<DashboardStats>({ totalPsychologists: 0, totalCandidates: 0, totalExams: 0, activeSessions: 0 });
+    const [quota, setQuota] = useState<Quota | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [orgName, setOrgName] = useState('');
+
+    useEffect(() => {
+        fetchStats();
+        fetchQuota();
+    }, []);
+
+    const fetchStats = async () => {
+        try {
+            const res = await fetch('/api/admin/stats');
+            if (res.status === 401 || res.status === 403) {
+                router.push('/adminpsi');
+                return;
+            }
+            if (res.ok) {
+                const data = await res.json();
+                setStats(data.stats);
+                setOrgName(data.organization?.name || 'Organisasi');
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchQuota = async () => {
+        try {
+            const res = await fetch('/api/admin/quota');
+            if (res.ok) {
+                const data = await res.json();
+                setQuota(data);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/adminpsi');
+    };
+
+    // ... Component JSX renders stats cards, quota usage bars, and navigation menu
+}
+```
+
+### src/app/psychologist/dashboard/page.tsx - Psychologist Dashboard
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Upload, FileDown, Plus, Pencil, BarChart3, LogOut, Trash2, Users } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { useRouter } from 'next/navigation';
+
+interface Exam {
+    id: number;
+    title: string;
+    status: string;
+    description: string;
+    question_count: number;
+    assigned_candidates: number;
+    is_assigned_to_me: boolean;
+}
+
+export default function PsychologistDashboard() {
+    const router = useRouter();
+    const [exams, setExams] = useState<Exam[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [totalCandidates, setTotalCandidates] = useState(0);
+
+    useEffect(() => {
+        fetchExams();
+        fetchTotalCandidates();
+    }, []);
+
+    const fetchExams = async () => {
+        try {
+            const res = await fetch('/api/psychologist/exams');
+            if (res.status === 401 || res.status === 403) {
+                router.push('/adminpsi');
+                return;
+            }
+            if (res.ok) {
+                const data = await res.json();
+                setExams(data);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchTotalCandidates = async () => {
+        try {
+            const res = await fetch('/api/psychologist/candidates/count');
+            if (res.ok) {
+                const data = await res.json();
+                setTotalCandidates(data.count);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const downloadTemplate = () => {
+        const ws = XLSX.utils.json_to_sheet([
+            { question: "Contoh soal?", options: "A; B; C; D", correct_answer: "A" }
+        ]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Template");
+        XLSX.writeFile(wb, "Template_Soal_Asisya.xlsx");
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/adminpsi');
+    };
+
+    // ... Component JSX renders exam list, upload form, delete modal
+}
+```
+
+### src/app/superadmin/dashboard/page.tsx - Super Admin Dashboard
+```tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Users, UserCog, LogOut, ClipboardList, Building2, Settings, BarChart3, Shield } from 'lucide-react';
+
+interface DashboardStats {
+    totalAdmins: number;
+    totalPsychologists: number;
+    totalCandidates: number;
+    totalExams: number;
+    totalOrganizations: number;
+}
+
+export default function SuperAdminDashboard() {
+    const router = useRouter();
+    const [stats, setStats] = useState<DashboardStats>({
+        totalAdmins: 0,
+        totalPsychologists: 0,
+        totalCandidates: 0,
+        totalExams: 0,
+        totalOrganizations: 0
+    });
+
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    const fetchStats = async () => {
+        try {
+            const res = await fetch('/api/superadmin/stats');
+            if (res.status === 401 || res.status === 403) {
+                router.push('/adminpsi');
+                return;
+            }
+            if (res.ok) {
+                const data = await res.json();
+                setStats(data);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        router.push('/adminpsi');
+    };
+
+    // ... Component JSX renders platform-wide stats, client management links, quota management
+}
+```
+
+### src/app/adminpsi/page.tsx - Admin/Psychologist Login
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { User, Lock, Eye, EyeOff, Shield } from 'lucide-react';
+
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Redirect berdasarkan role dari server
+        router.push(data.redirect || '/psychologist/dashboard');
+      } else {
+        setError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('Internal server error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
+      <div className="w-full max-w-[1100px] min-h-[600px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
+        {/* Left Side - Hero */}
+        <div className="relative hidden lg:flex w-1/2 bg-cover bg-center flex-col justify-end p-12 text-white"
+          style={{ backgroundImage: `linear-gradient(to bottom right, rgba(37, 99, 235, 0.9), rgba(15, 23, 42, 0.95)), url('...')` }}>
+          <div className="relative z-10 flex flex-col gap-5">
+            <img src="/asisya.png" alt="Asisya" className="h-14 w-14" />
+            <h1 className="text-4xl font-bold">Professional Assessment Solutions</h1>
+            <p className="text-white/80 text-lg">Portal for Admins and Psychologists</p>
+          </div>
+        </div>
+
+        {/* Right Side - Form */}
+        <div className="w-full lg:w-1/2 bg-white p-16 flex flex-col justify-center">
+          <form onSubmit={handleLogin} className="flex flex-col gap-5 w-full max-w-[400px]">
+            <div className="flex flex-col gap-2">
+              <label className="text-slate-700 text-sm font-semibold">Username</label>
+              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 h-12 px-4" placeholder="Enter your username" required />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-slate-700 text-sm font-semibold">Password</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 h-12 px-4 pr-12" placeholder="Enter your password" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-xl">{error}</div>}
+
+            <button type="submit" disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl font-bold">
+              {loading ? 'LOGGING IN...' : 'LOGIN'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
 
 ---
 
