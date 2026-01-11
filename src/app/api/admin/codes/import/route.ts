@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import pool from '@/lib/db';
 import { cookies } from 'next/headers';
 import { getSession } from '@/lib/auth';
+import { canAccessAdminFeatures } from '@/lib/roles';
 
-// Generate random code - 16 characters for standard
-function generateCode(length: number = 16): string {
+const MAX_IMPORT = 3000; // Rate limit max candidates per import
+
+// Legacy: Generate random code - 16 characters
+function generateLegacyCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < 16; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
@@ -20,88 +23,207 @@ interface GeneratedCode {
     expires_at: string;
 }
 
-// POST - Import multiple codes from Excel data
+// POST - Import multiple codes from Excel data with optimized bulk insert
 export async function POST(req: NextRequest) {
     try {
-        // ✅ Use user_session cookie (fixed from auth_token)
         const cookieStore = await cookies();
         const sessionCookie = cookieStore.get('user_session');
 
         const user = await getSession(sessionCookie?.value);
-        if (!user) {
+        if (!user || !canAccessAdminFeatures(user.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Only admin and super_admin can import codes
-        if (!['admin', 'super_admin'].includes(user.role)) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
-        const { candidates, examId, expiresInDays } = await req.json();
+        const { candidates, examId, expiresInDays, companyCodeId, useLegacyFormat = false } = await req.json();
 
         if (!candidates || !Array.isArray(candidates) || candidates.length === 0) {
-            return NextResponse.json({ error: 'Candidates data is required' }, { status: 400 });
+            return NextResponse.json({ error: 'Data kandidat diperlukan' }, { status: 400 });
+        }
+
+        // Rate limiting - max 3000
+        if (candidates.length > MAX_IMPORT) {
+            return NextResponse.json({ 
+                error: `Maksimal ${MAX_IMPORT} kandidat per import. Anda mengirim ${candidates.length} kandidat.` 
+            }, { status: 400 });
+        }
+
+        // Input validation for companyCodeId
+        if (!useLegacyFormat) {
+            if (!companyCodeId) {
+                return NextResponse.json({ error: 'Pilih kode perusahaan untuk format baru' }, { status: 400 });
+            }
+            if (typeof companyCodeId !== 'number' || companyCodeId < 1 || !Number.isInteger(companyCodeId)) {
+                return NextResponse.json({ error: 'companyCodeId harus berupa angka positif' }, { status: 400 });
+            }
         }
 
         // Validate examId if provided
-        if (examId) {
-            const examCheck = await query<{ id: number }>('SELECT id FROM exams WHERE id = $1', [examId]);
-            if (examCheck.length === 0) {
-                return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+        if (examId !== undefined && examId !== null) {
+            if (typeof examId !== 'number' || examId < 1 || !Number.isInteger(examId)) {
+                return NextResponse.json({ error: 'examId harus berupa angka positif' }, { status: 400 });
+            }
+            const examCheck = await pool.query('SELECT id FROM exams WHERE id = $1', [examId]);
+            if (examCheck.rows.length === 0) {
+                return NextResponse.json({ error: 'Ujian tidak ditemukan' }, { status: 404 });
             }
         }
 
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 7));
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
 
-        const generatedCodes: GeneratedCode[] = [];
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + (expiresInDays || 7));
 
-        for (const candidate of candidates) {
-            const name = candidate.name?.trim();
-            if (!name) continue;
-
-            // Generate unique code
-            let code = generateCode();
-            let attempts = 0;
-            const maxAttempts = 10;
-
-            while (attempts < maxAttempts) {
-                const existing = await query<{ id: number }>('SELECT id FROM candidate_codes WHERE code = $1', [code]);
-                if (existing.length === 0) break;
-                code = generateCode();
-                attempts++;
+            // Get company internal code (4-digit) if using new format
+            let internalCode = '0000';
+            let companyCodeIdToUse = null;
+            
+            if (!useLegacyFormat && companyCodeId) {
+                const companyResult = await client.query(
+                    'SELECT id, code FROM company_codes WHERE id = $1 AND is_active = TRUE',
+                    [companyCodeId]
+                );
+                if (companyResult.rows.length === 0) {
+                    await client.query('ROLLBACK');
+                    return NextResponse.json({ error: 'Kode perusahaan tidak ditemukan atau tidak aktif' }, { status: 400 });
+                }
+                internalCode = companyResult.rows[0].code;
+                companyCodeIdToUse = companyResult.rows[0].id;
             }
 
-            if (attempts === maxAttempts) {
-                continue; // Skip if can't generate unique code
+            const generatedCodes: GeneratedCode[] = [];
+
+            if (!useLegacyFormat) {
+                // OPTIMIZED: New format with bulk insert
+                const now = new Date();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = String(now.getFullYear()).slice(-2);
+                const prefix = `${month}${year}-${internalCode}-`;
+
+                // Get starting sequence number (with FOR UPDATE lock)
+                const seqResult = await client.query(`
+                    SELECT code FROM candidate_codes 
+                    WHERE code LIKE $1 
+                    AND LENGTH(code) = 14
+                    ORDER BY code DESC
+                    LIMIT 1
+                    FOR UPDATE
+                `, [prefix + '%']);
+
+                let nextNum = 1;
+                if (seqResult.rows.length > 0) {
+                    const lastCode = seqResult.rows[0].code;
+                    nextNum = parseInt(lastCode.slice(-4), 10) + 1;
+                }
+
+                // Filter valid candidates
+                const validCandidates = candidates.filter(c => c.name?.trim());
+
+                // Check if we have enough numbers
+                if (nextNum + validCandidates.length - 1 > 9999) {
+                    await client.query('ROLLBACK');
+                    return NextResponse.json({ 
+                        error: `Nomor urut tidak cukup. Tersisa ${9999 - nextNum + 1} nomor untuk kombinasi ini. Butuh ${validCandidates.length} nomor.` 
+                    }, { status: 400 });
+                }
+
+                // Build bulk insert values
+                const values: any[] = [];
+                const placeholders: string[] = [];
+                let paramIndex = 1;
+
+                for (let i = 0; i < validCandidates.length; i++) {
+                    const name = validCandidates[i].name.trim();
+                    const code = `${prefix}${String(nextNum + i).padStart(4, '0')}`;
+                    const metadata = JSON.stringify({ candidate_name: name });
+
+                    placeholders.push(
+                        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`
+                    );
+                    values.push(
+                        code,
+                        examId || null,
+                        expiresAt,
+                        metadata,
+                        user.id,
+                        companyCodeIdToUse
+                    );
+
+                    generatedCodes.push({
+                        id: 0, // Will be updated after insert
+                        code,
+                        candidate_name: name,
+                        expires_at: expiresAt.toISOString()
+                    });
+                }
+
+                if (placeholders.length > 0) {
+                    // Single bulk insert - much faster than loop
+                    await client.query(`
+                        INSERT INTO candidate_codes (code, exam_id, expires_at, metadata, created_by, company_code_id)
+                        VALUES ${placeholders.join(', ')}
+                    `, values);
+                }
+
+            } else {
+                // Legacy format - individual inserts with collision check
+                for (const candidate of candidates) {
+                    const name = candidate.name?.trim();
+                    if (!name) continue;
+
+                    // Generate unique code with collision check
+                    let code = generateLegacyCode();
+                    let attempts = 0;
+                    const maxAttempts = 10;
+
+                    while (attempts < maxAttempts) {
+                        const existing = await client.query(
+                            'SELECT id FROM candidate_codes WHERE code = $1',
+                            [code]
+                        );
+                        if (existing.rows.length === 0) break;
+                        code = generateLegacyCode();
+                        attempts++;
+                    }
+
+                    if (attempts === maxAttempts) continue;
+
+                    const metadata = JSON.stringify({ candidate_name: name });
+
+                    const result = await client.query(
+                        `INSERT INTO candidate_codes (code, exam_id, expires_at, metadata, created_by)
+                         VALUES ($1, $2, $3, $4::jsonb, $5)
+                         RETURNING id, code, expires_at`,
+                        [code, examId || null, expiresAt, metadata, user.id]
+                    );
+
+                    if (result.rows.length > 0) {
+                        generatedCodes.push({
+                            id: result.rows[0].id,
+                            code: result.rows[0].code,
+                            candidate_name: name,
+                            expires_at: result.rows[0].expires_at
+                        });
+                    }
+                }
             }
 
-            // ✅ Use metadata JSONB field for candidate_name (fixed from direct column)
-            const metadata = JSON.stringify({ candidate_name: name });
+            await client.query('COMMIT');
 
-            // Insert code with created_by from session
-            const result = await query<{ id: number; code: string; expires_at: string }>(
-                `INSERT INTO candidate_codes (code, exam_id, expires_at, is_active, metadata, created_by, created_at)
-                 VALUES ($1, $2, $3, true, $4::jsonb, $5, NOW())
-                 RETURNING id, code, expires_at`,
-                [code, examId || null, expiresAt, metadata, user.id]
-            );
+            return NextResponse.json({
+                success: true,
+                message: `Berhasil import ${generatedCodes.length} kode`,
+                codes: generatedCodes,
+                format: useLegacyFormat ? 'legacy' : 'new'
+            });
 
-            if (result.length > 0) {
-                generatedCodes.push({
-                    id: result[0].id,
-                    code: result[0].code,
-                    candidate_name: name,
-                    expires_at: result[0].expires_at
-                });
-            }
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
         }
-
-        return NextResponse.json({
-            message: `Successfully imported ${generatedCodes.length} codes`,
-            codes: generatedCodes
-        });
-
     } catch (error) {
         console.error('Import codes error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

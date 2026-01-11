@@ -6,6 +6,9 @@ import { canAccessPsychologistFeatures } from '@/lib/roles';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const { id: examId } = await params;
+    const { searchParams } = new URL(req.url);
+    const showAll = searchParams.get('showAll') === 'true';
+    const includeInProgress = searchParams.get('includeInProgress') === 'true';
 
     // Get session to check admin assignment
     const cookieStore = await cookies();
@@ -45,6 +48,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // Get attempts with user info and admin assignments
         // ✅ Use COALESCE to get full_name from user_profiles if users.full_name is NULL
         // ✅ Use DISTINCT ON to only get the latest attempt per user
+        // ✅ Include 'in_progress' status if includeInProgress is true (for viewing candidates who started but haven't finished)
+        const statusFilter = includeInProgress ? "AND ea.status IN ('completed', 'in_progress')" : "AND ea.status = 'completed'";
+        
         const attemptsQuery = `
         SELECT DISTINCT ON (ea.user_id)
             ea.id, 
@@ -52,6 +58,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             COALESCE(up.full_name, u.full_name, u.username) as student, 
             ea.score, 
             ea.end_time,
+            ea.status as attempt_status,
+            ea.start_time,
+            up.gender,
             (
                 SELECT COUNT(*) 
                 FROM answers a 
@@ -67,8 +76,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         FROM exam_attempts ea
         JOIN users u ON ea.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id
-        WHERE ea.exam_id = $1 AND ea.status = 'completed'
-        ORDER BY ea.user_id, ea.end_time DESC
+        WHERE ea.exam_id = $1 ${statusFilter}
+        ORDER BY ea.user_id, ea.end_time DESC NULLS LAST
       `;
 
         const attemptsRes = await client.query(attemptsQuery, [examId]);

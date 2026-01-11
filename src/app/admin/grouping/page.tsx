@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, UserCog, Shuffle, Save, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Users, UserCog, Shuffle, Save, RefreshCw, Search } from 'lucide-react';
 
 interface Exam {
     id: number;
@@ -37,6 +37,7 @@ export default function GroupingPage() {
     const [candidates, setCandidates] = useState<Candidate[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Auto-assign inputs
     const [assignmentInputs, setAssignmentInputs] = useState<AssignmentInput[]>([]);
@@ -188,7 +189,7 @@ export default function GroupingPage() {
             });
 
             if (res.ok) {
-                alert('Pembagian kandidat berhasil disimpan!');
+                alert('Pembagian peserta berhasil disimpan!');
             } else {
                 const err = await res.json();
                 alert(err.error || 'Gagal menyimpan');
@@ -214,6 +215,16 @@ export default function GroupingPage() {
 
     const unassignedCount = candidates.filter(c => !c.assigned_to).length;
 
+    // Filter candidates based on search query
+    const filteredCandidates = useMemo(() => {
+        if (!searchQuery.trim()) return candidates;
+        const query = searchQuery.toLowerCase().trim();
+        return candidates.filter(c => 
+            (c.full_name?.toLowerCase().includes(query)) ||
+            (c.username.toLowerCase().includes(query))
+        );
+    }, [candidates, searchQuery]);
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Navbar - Mobile Responsive */}
@@ -227,8 +238,8 @@ export default function GroupingPage() {
                     </button>
                     <img src="/asisya.png" alt="Asisya" className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg shadow-md" />
                     <div className="min-w-0">
-                        <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">Pembagian Kandidat</h1>
-                        <p className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">Auto-assign kandidat ke psikolog</p>
+                        <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">Pembagian Peserta</h1>
+                        <p className="text-[10px] sm:text-xs text-gray-500 hidden sm:block">Auto-assign peserta ke psikolog</p>
                     </div>
                 </div>
             </nav>
@@ -328,7 +339,7 @@ export default function GroupingPage() {
                                             </div>
                                         </div>
                                         <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                                            {psych.assigned_count} kandidat
+                                            {psych.assigned_count} peserta
                                         </div>
                                     </div>
                                 ))}
@@ -337,23 +348,36 @@ export default function GroupingPage() {
 
                         {/* Candidates Panel */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                                <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                                    <Users size={20} />
-                                    Daftar Kandidat ({candidates.length})
-                                </h3>
-                                <span className="text-sm text-gray-500">
-                                    Belum di-assign: {unassignedCount}
-                                </span>
+                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                                        <Users size={20} />
+                                        Daftar Peserta ({candidates.length})
+                                    </h3>
+                                    <span className="text-sm text-gray-500">
+                                        Belum di-assign: {unassignedCount}
+                                    </span>
+                                </div>
+                                {/* Search Input */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama peserta..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-400"
+                                    />
+                                </div>
                             </div>
 
                             <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
-                                {candidates.length === 0 ? (
+                                {filteredCandidates.length === 0 ? (
                                     <div className="p-8 text-center text-gray-500">
-                                        Tidak ada kandidat untuk ujian ini
+                                        {searchQuery ? 'Tidak ada peserta yang cocok dengan pencarian' : 'Tidak ada peserta untuk ujian ini'}
                                     </div>
                                 ) : (
-                                    candidates.map(candidate => {
+                                    filteredCandidates.map(candidate => {
                                         const assignedPsych = psychologists.find(p => p.id === candidate.assigned_to);
                                         return (
                                             <div key={candidate.id} className="px-6 py-3 flex items-center justify-between">

@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { getSession, ROLES } from '@/lib/auth';
 import { canAccessSuperAdminFeatures } from '@/lib/roles';
 import bcrypt from 'bcryptjs';
+import { cookies } from 'next/headers';
 
 // PUT - Update client
 export async function PUT(
@@ -10,7 +11,9 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getSession();
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
 
         if (!session || !canAccessSuperAdminFeatures(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -106,7 +109,9 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getSession();
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
 
         if (!session || !canAccessSuperAdminFeatures(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

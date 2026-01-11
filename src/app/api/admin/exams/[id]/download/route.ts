@@ -4,6 +4,8 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { canAccessPsychologistFeatures } from '@/lib/roles';
 import * as XLSX from 'xlsx';
+import { calculatePSSScore, PSS_OPTIONS, PSS_REVERSE_QUESTIONS } from '@/lib/scoring/pss';
+import { calculateSRQ29Score, SRQ29_OPTIONS } from '@/lib/scoring/srq29';
 
 export async function GET(
     request: NextRequest,
@@ -25,9 +27,10 @@ export async function GET(
 
         const client = await pool.connect();
         try {
-            // Get exam info
-            const examRes = await client.query('SELECT title FROM exams WHERE id = $1', [examId]);
+            // Get exam info including exam_type
+            const examRes = await client.query('SELECT title, exam_type FROM exams WHERE id = $1', [examId]);
             const examTitle = examRes.rows[0]?.title || 'Ujian';
+            const examType = examRes.rows[0]?.exam_type || 'general';
 
             // Get question count for this exam
             const questionCountRes = await client.query(
@@ -144,42 +147,137 @@ export async function GET(
             // Create workbook
             const wb = XLSX.utils.book_new();
 
-            // ===== TAB 1: Jawaban =====
-            // Headers: No, Nama, Gender, 1, 2, 3, ... questionCount
-            const answersHeaders = ['No', 'Nama', 'Gender'];
-            for (let i = 1; i <= questionCount; i++) {
-                answersHeaders.push(String(i));
-            }
+            // ===== PSS Exam Format =====
+            if (examType === 'pss') {
+                // PSS Format: Nama, Jenis Kelamin, Skor, Keterangan (Stress Ringan/Sedang/Berat)
+                const pssHeaders = ['No', 'Nama', 'Jenis Kelamin', 'Skor', 'Keterangan'];
+                const pssData: any[][] = [pssHeaders];
 
-            const answersData: any[][] = [answersHeaders];
+                attempts.forEach((attempt: any, index: number) => {
+                    const profile = profilesMap[attempt.user_id] || {};
+                    const answers = answersMap[attempt.attempt_id] || {};
 
-            attempts.forEach((attempt: any, index: number) => {
-                const profile = profilesMap[attempt.user_id] || {};
-                const answers = answersMap[attempt.attempt_id] || {};
+                    // Extract answer values (0-4) for PSS
+                    const answerValues: number[] = [];
+                    questionIds.forEach((qId: number) => {
+                        const answerData = answers[qId];
+                        // PSS uses 0-4 scale, try to parse from answer text or default to 0
+                        let value = 0;
+                        if (answerData && answerData.answer) {
+                            // Try to find matching option value
+                            const option = PSS_OPTIONS.find(o => o.label === answerData.answer || o.labelEn === answerData.answer);
+                            value = (option?.value ?? parseInt(answerData.answer)) || 0;
+                        }
+                        answerValues.push(value);
+                    });
 
-                const row: any[] = [
-                    index + 1,
-                    attempt.full_name || attempt.username || '-',
-                    profile.gender || '-'
-                ];
-
-                // Add answers for each question - show "benar" or "salah"
-                questionIds.forEach((qId: number) => {
-                    const answerData = answers[qId];
-                    if (answerData) {
-                        row.push(answerData.is_correct ? 'benar' : 'salah');
-                    } else {
-                        row.push(''); // Not answered
+                    // Calculate PSS score if we have 10 answers
+                    let pssResult = { totalScore: 0, levelLabel: 'N/A' };
+                    if (answerValues.length === 10) {
+                        try {
+                            pssResult = calculatePSSScore(answerValues);
+                        } catch (e) {
+                            console.error('PSS scoring error:', e);
+                        }
                     }
+
+                    pssData.push([
+                        index + 1,
+                        attempt.full_name || attempt.username || '-',
+                        profile.gender || '-',
+                        pssResult.totalScore,
+                        pssResult.levelLabel
+                    ]);
                 });
 
-                answersData.push(row);
-            });
+                const wsPSS = XLSX.utils.aoa_to_sheet(pssData);
+                XLSX.utils.book_append_sheet(wb, wsPSS, 'Hasil PSS');
+            }
+            // ===== SRQ-29 Exam Format =====
+            else if (examType === 'srq29') {
+                // SRQ-29 Format: Nama, Jenis Kelamin, Skor Total, Output Hasil (bisa multiple)
+                const srqHeaders = ['No', 'Nama', 'Jenis Kelamin', 'Skor Total', 'Hasil Kategori', 'Status'];
+                const srqData: any[][] = [srqHeaders];
 
-            const wsAnswers = XLSX.utils.aoa_to_sheet(answersData);
-            XLSX.utils.book_append_sheet(wb, wsAnswers, 'Jawaban');
+                attempts.forEach((attempt: any, index: number) => {
+                    const profile = profilesMap[attempt.user_id] || {};
+                    const answers = answersMap[attempt.attempt_id] || {};
 
-            // ===== TAB 2: Data Diri =====
+                    // Extract answer values (0 or 1) for SRQ-29
+                    const answerValues: number[] = [];
+                    questionIds.forEach((qId: number) => {
+                        const answerData = answers[qId];
+                        // SRQ uses Yes/No (1/0)
+                        let value = 0;
+                        if (answerData && answerData.answer) {
+                            const option = SRQ29_OPTIONS.find(o => o.label === answerData.answer || o.labelEn === answerData.answer);
+                            value = option?.value ?? (answerData.answer.toLowerCase() === 'ya' || answerData.answer.toLowerCase() === 'yes' ? 1 : 0);
+                        }
+                        answerValues.push(value);
+                    });
+
+                    // Calculate SRQ-29 score if we have 29 answers
+                    let srqResult = { totalScore: 0, positiveCategories: [] as string[], overallStatus: 'normal' as const };
+                    if (answerValues.length === 29) {
+                        try {
+                            srqResult = calculateSRQ29Score(answerValues);
+                        } catch (e) {
+                            console.error('SRQ-29 scoring error:', e);
+                        }
+                    }
+
+                    srqData.push([
+                        index + 1,
+                        attempt.full_name || attempt.username || '-',
+                        profile.gender || '-',
+                        srqResult.totalScore,
+                        srqResult.positiveCategories.length > 0 ? srqResult.positiveCategories.join(', ') : 'Normal',
+                        srqResult.overallStatus === 'normal' ? 'Normal' : 'Perlu Perhatian'
+                    ]);
+                });
+
+                const wsSRQ = XLSX.utils.aoa_to_sheet(srqData);
+                XLSX.utils.book_append_sheet(wb, wsSRQ, 'Hasil SRQ-29');
+            }
+            // ===== General/MMPI Exam Format (Original) =====
+            else {
+                // ===== TAB 1: Jawaban =====
+                // Headers: No, Nama, Gender, 1, 2, 3, ... questionCount
+                const answersHeaders = ['No', 'Nama', 'Gender'];
+                for (let i = 1; i <= questionCount; i++) {
+                    answersHeaders.push(String(i));
+                }
+
+                const answersData: any[][] = [answersHeaders];
+
+                attempts.forEach((attempt: any, index: number) => {
+                    const profile = profilesMap[attempt.user_id] || {};
+                    const answers = answersMap[attempt.attempt_id] || {};
+
+                    const row: any[] = [
+                        index + 1,
+                        attempt.full_name || attempt.username || '-',
+                        profile.gender || '-'
+                    ];
+
+                    // Add answers for each question - show "benar" or "salah"
+                    questionIds.forEach((qId: number) => {
+                        const answerData = answers[qId];
+                        if (answerData) {
+                            row.push(answerData.is_correct ? 'benar' : 'salah');
+                        } else {
+                            row.push(''); // Not answered
+                        }
+                    });
+
+                    answersData.push(row);
+                });
+
+                const wsAnswers = XLSX.utils.aoa_to_sheet(answersData);
+                XLSX.utils.book_append_sheet(wb, wsAnswers, 'Jawaban');
+            } // End of else block for general exam
+
+            // ===== TAB 2: Data Diri (Common for all exam types) =====
             // ✅ Removed Email column, Added Nomor Peserta
             const profileHeaders = [
                 'No',

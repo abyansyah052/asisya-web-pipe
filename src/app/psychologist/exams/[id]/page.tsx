@@ -18,6 +18,8 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
     
     // Tab state: 'assigned' or 'all'
     const [viewMode, setViewMode] = useState<'assigned' | 'all'>('assigned');
+    // Toggle to include in-progress candidates (started but not completed)
+    const [includeInProgress, setIncludeInProgress] = useState(false);
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
@@ -27,9 +29,14 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         if (!examId) return;
         const fetchResults = async () => {
             try {
-                // Fetch with showAll param based on viewMode
-                const showAllParam = viewMode === 'all' ? '?showAll=true' : '';
-                const res = await fetch(`/api/admin/exams/${examId}/results${showAllParam}`);
+                // Fetch with showAll and includeInProgress params
+                const queryParams = new URLSearchParams();
+                if (viewMode === 'all') queryParams.set('showAll', 'true');
+                if (includeInProgress) queryParams.set('includeInProgress', 'true');
+                const queryString = queryParams.toString();
+                const url = `/api/admin/exams/${examId}/results${queryString ? `?${queryString}` : ''}`;
+                
+                const res = await fetch(url);
                 if (res.status === 401 || res.status === 403) {
                     router.push('/adminpsi');
                     return;
@@ -49,7 +56,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
             }
         };
         fetchResults();
-    }, [examId, router, viewMode]);
+    }, [examId, router, viewMode, includeInProgress]);
 
     // Filter results based on selection
     const displayedResults = (() => {
@@ -136,7 +143,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                             
                             {/* Tab untuk switch Kandidat Saya vs Semua Kandidat */}
                             {assignedCandidates.length > 0 && (
-                                <div className="mt-3 flex gap-2">
+                                <div className="mt-3 flex flex-wrap gap-2">
                                     <button
                                         onClick={() => setViewMode('assigned')}
                                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
@@ -159,6 +166,25 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                     </button>
                                 </div>
                             )}
+                            
+                            {/* Toggle untuk termasuk yang belum selesai */}
+                            <div className="mt-3 flex items-center gap-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeInProgress}
+                                        onChange={(e) => setIncludeInProgress(e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-600">Termasuk yang Sedang Mengerjakan</span>
+                                </label>
+                                {includeInProgress && (
+                                    <span className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-full flex items-center gap-1">
+                                        <Clock size={12} />
+                                        Termasuk In-Progress
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         
                         {/* Download Buttons - Always show both */}

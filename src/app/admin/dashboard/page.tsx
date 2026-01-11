@@ -242,15 +242,15 @@ export default function AdminOwnerDashboard() {
                                 <ClipboardList className="text-blue-800 group-hover:text-white transition-colors" size={32} />
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-800 transition-colors">Pembagian Kandidat</h3>
-                                <p className="text-sm text-gray-500">Assign kandidat ke psikolog</p>
+                                <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-800 transition-colors">Pembagian Peserta</h3>
+                                <p className="text-sm text-gray-500">Assign peserta ke psikolog</p>
                             </div>
                         </div>
                         <p className="text-gray-600 mb-4 flex-1">
-                            Bagi kandidat ke psikolog untuk setiap ujian. Gunakan fitur auto-assign atau atur manual.
+                            Bagi peserta ke psikolog untuk setiap ujian. Gunakan fitur auto-assign atau atur manual.
                         </p>
                         <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-auto">
-                            Buka Pembagian Kandidat
+                            Buka Pembagian Peserta
                         </button>
                     </div>
 

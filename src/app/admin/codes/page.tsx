@@ -25,10 +25,17 @@ interface Exam {
     title: string;
 }
 
+interface CompanyCode {
+    id: number;
+    code: string;
+    company_name: string;
+}
+
 export default function AdminCodesPage() {
     const router = useRouter();
     const [codes, setCodes] = useState<CandidateCode[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
+    const [companyCodes, setCompanyCodes] = useState<CompanyCode[]>([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -40,6 +47,8 @@ export default function AdminCodesPage() {
     const [selectedExam, setSelectedExam] = useState<number | null>(null);
     const [expiresInDays, setExpiresInDays] = useState(7);
     const [candidateName, setCandidateName] = useState('');
+    const [selectedCompanyCode, setSelectedCompanyCode] = useState<number | null>(null);
+    const [useLegacyFormat, setUseLegacyFormat] = useState(false);
 
     // Import Excel state
     const [showImportModal, setShowImportModal] = useState(false);
@@ -47,11 +56,14 @@ export default function AdminCodesPage() {
     const [importing, setImporting] = useState(false);
     const [importExam, setImportExam] = useState<number | null>(null);
     const [importExpiresDays, setImportExpiresDays] = useState(7);
+    const [importCompanyCode, setImportCompanyCode] = useState<number | null>(null);
+    const [importUseLegacy, setImportUseLegacy] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchCodes();
         fetchExams();
+        fetchCompanyCodes();
     }, []);
 
     const fetchCodes = async () => {
@@ -69,6 +81,18 @@ export default function AdminCodesPage() {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCompanyCodes = async () => {
+        try {
+            const res = await fetch('/api/admin/company-codes');
+            if (res.ok) {
+                const data = await res.json();
+                setCompanyCodes(data);
+            }
+        } catch (err) {
+            console.error(err);
         }
     };
 
@@ -94,7 +118,9 @@ export default function AdminCodesPage() {
                     count: generateCount,
                     examId: selectedExam,
                     expiresInDays,
-                    candidateName: candidateName || null
+                    candidateName: candidateName || null,
+                    companyCodeId: selectedCompanyCode,
+                    useLegacyFormat
                 })
             });
 
@@ -108,6 +134,8 @@ export default function AdminCodesPage() {
                 setSelectedExam(null);
                 setExpiresInDays(7);
                 setCandidateName('');
+                setSelectedCompanyCode(null);
+                setUseLegacyFormat(false);
             } else {
                 const err = await res.json();
                 alert(err.error || 'Gagal membuat kode');
@@ -315,6 +343,18 @@ export default function AdminCodesPage() {
             return;
         }
 
+        // Rate limit check on client side
+        if (importData.length > 3000) {
+            alert(`Maksimal 3000 kandidat per import. Anda mengirim ${importData.length} kandidat.`);
+            return;
+        }
+
+        // New format requires company code
+        if (!importUseLegacy && !importCompanyCode) {
+            alert('Pilih kode perusahaan untuk format baru, atau gunakan format lama');
+            return;
+        }
+
         setImporting(true);
         try {
             const res = await fetch('/api/admin/codes/import', {
@@ -323,7 +363,9 @@ export default function AdminCodesPage() {
                 body: JSON.stringify({
                     candidates: importData,
                     examId: importExam,
-                    expiresInDays: importExpiresDays
+                    expiresInDays: importExpiresDays,
+                    companyCodeId: importCompanyCode,
+                    useLegacyFormat: importUseLegacy
                 })
             });
 
@@ -334,6 +376,8 @@ export default function AdminCodesPage() {
                 setImportData([]);
                 setImportExam(null);
                 setImportExpiresDays(7);
+                setImportCompanyCode(null);
+                setImportUseLegacy(false);
                 fetchCodes();
             } else {
                 const err = await res.json();
@@ -598,6 +642,58 @@ export default function AdminCodesPage() {
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Kode Internal Perusahaan
+                                </label>
+                                <select
+                                    value={selectedCompanyCode || ''}
+                                    onChange={(e) => setSelectedCompanyCode(e.target.value ? parseInt(e.target.value) : null)}
+                                    disabled={useLegacyFormat}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 disabled:bg-gray-100"
+                                >
+                                    <option value="">-- Pilih Kode Perusahaan --</option>
+                                    {companyCodes.map(cc => (
+                                        <option key={cc.id} value={cc.id}>
+                                            {cc.company_name} ({cc.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                {!useLegacyFormat && companyCodes.length === 0 && (
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        Belum ada kode perusahaan. Hubungi superadmin untuk menambahkan.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="useLegacyFormat"
+                                    checked={useLegacyFormat}
+                                    onChange={(e) => setUseLegacyFormat(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <label htmlFor="useLegacyFormat" className="text-sm text-gray-700">
+                                    Gunakan format lama (16 karakter acak)
+                                </label>
+                            </div>
+
+                            {!useLegacyFormat && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <p className="text-xs text-blue-800">
+                                        <strong>Format Kode Baru:</strong> MMYY-XXXX-NNNN<br/>
+                                        <span className="text-blue-600">
+                                            Contoh: {new Date().toLocaleDateString('id-ID', {month: '2-digit', year: '2-digit'}).replace('/', '')}-
+                                            {companyCodes.find(c => c.id === selectedCompanyCode)?.code || 'XXXX'}-0001
+                                        </span>
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                        XXXX = Kode internal 4 digit (ditentukan superadmin)
+                                    </p>
+                                </div>
+                            )}
+
                             {generateCount === 1 && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -643,6 +739,8 @@ export default function AdminCodesPage() {
                                 onClick={() => {
                                     setShowImportModal(false);
                                     setImportData([]);
+                                    setImportCompanyCode(null);
+                                    setImportUseLegacy(false);
                                 }}
                                 className="text-gray-400 hover:text-gray-600"
                             >
@@ -661,7 +759,7 @@ export default function AdminCodesPage() {
                             <div className="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
                                 <p className="text-sm font-medium text-gray-700 mb-2">Daftar Peserta:</p>
                                 <div className="space-y-1">
-                                    {importData.map((item, idx) => (
+                                    {importData.slice(0, 100).map((item, idx) => (
                                         <div key={idx} className="flex items-center gap-2 text-sm text-gray-600">
                                             <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium">
                                                 {idx + 1}
@@ -669,6 +767,11 @@ export default function AdminCodesPage() {
                                             {item.name}
                                         </div>
                                     ))}
+                                    {importData.length > 100 && (
+                                        <div className="text-sm text-gray-500 italic pt-2">
+                                            ... dan {importData.length - 100} peserta lainnya
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -703,6 +806,64 @@ export default function AdminCodesPage() {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Kode Internal Perusahaan
+                                </label>
+                                <select
+                                    value={importCompanyCode || ''}
+                                    onChange={(e) => setImportCompanyCode(e.target.value ? parseInt(e.target.value) : null)}
+                                    disabled={importUseLegacy}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 disabled:bg-gray-100"
+                                >
+                                    <option value="">-- Pilih Kode Perusahaan --</option>
+                                    {companyCodes.map(cc => (
+                                        <option key={cc.id} value={cc.id}>
+                                            {cc.company_name} ({cc.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                {!importUseLegacy && companyCodes.length === 0 && (
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        Belum ada kode perusahaan. Hubungi superadmin untuk menambahkan.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="importUseLegacy"
+                                    checked={importUseLegacy}
+                                    onChange={(e) => setImportUseLegacy(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <label htmlFor="importUseLegacy" className="text-sm text-gray-700">
+                                    Gunakan format lama (16 karakter acak)
+                                </label>
+                            </div>
+
+                            {!importUseLegacy && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <p className="text-xs text-blue-800">
+                                        <strong>Format Kode:</strong> MMYY-XXXX-NNNN<br/>
+                                        <span className="text-blue-600">
+                                            Contoh: {new Date().toLocaleDateString('id-ID', {month: '2-digit', year: '2-digit'}).replace('/', '')}-
+                                            {companyCodes.find(c => c.id === importCompanyCode)?.code || 'XXXX'}-0001
+                                        </span>
+                                    </p>
+                                </div>
+                            )}
+
+                            {importData.length > 3000 && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                    <p className="text-xs text-red-800">
+                                        ⚠️ <strong>Melebihi batas!</strong> Maksimal 3000 kandidat per import.
+                                        Anda mengirim {importData.length} kandidat.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex gap-3 mt-6">
@@ -710,6 +871,8 @@ export default function AdminCodesPage() {
                                 onClick={() => {
                                     setShowImportModal(false);
                                     setImportData([]);
+                                    setImportCompanyCode(null);
+                                    setImportUseLegacy(false);
                                 }}
                                 className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"
                             >
@@ -717,7 +880,7 @@ export default function AdminCodesPage() {
                             </button>
                             <button
                                 onClick={importCodesFromExcel}
-                                disabled={importing}
+                                disabled={importing || importData.length > 3000 || (!importUseLegacy && !importCompanyCode)}
                                 className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
                             >
                                 {importing ? 'Mengimport...' : `Import ${importData.length} Kode`}

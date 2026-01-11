@@ -3,11 +3,14 @@ import pool from '@/lib/db';
 import { getSession, ROLES } from '@/lib/auth';
 import { canAccessSuperAdminFeatures } from '@/lib/roles';
 import bcrypt from 'bcryptjs';
+import { cookies } from 'next/headers';
 
 // GET - List all admin clients
 export async function GET(_request: NextRequest) {
     try {
-        const session = await getSession();
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
 
         if (!session || !canAccessSuperAdminFeatures(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
@@ -43,7 +46,9 @@ export async function GET(_request: NextRequest) {
 // POST - Create new admin client
 export async function POST(request: NextRequest) {
     try {
-        const session = await getSession();
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get('user_session');
+        const session = await getSession(sessionCookie?.value);
 
         if (!session || !canAccessSuperAdminFeatures(session.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });

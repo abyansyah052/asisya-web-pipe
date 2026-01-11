@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, UserCog, Shuffle, Hand, X } from 'lucide-react';
+import { ArrowLeft, Users, UserCog, Shuffle, Hand, X, Search } from 'lucide-react';
 
 interface Exam {
     id: number;
@@ -38,6 +38,7 @@ export default function GroupingPage() {
     const [selectedCandidates, setSelectedCandidates] = useState<Set<number>>(new Set());
     const [_loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchExams();
@@ -208,7 +209,7 @@ export default function GroupingPage() {
             });
 
             if (res.ok) {
-                alert('Pembagian kandidat berhasil disimpan!');
+                alert('Pembagian peserta berhasil disimpan!');
             } else {
                 const error = await res.json();
                 alert(error.error || 'Gagal menyimpan pembagian');
@@ -231,6 +232,18 @@ export default function GroupingPage() {
         return candidates.filter(c => !assignedIds.has(c.id));
     };
 
+    // Filter unassigned candidates based on search
+    const filteredUnassignedCandidates = useMemo(() => {
+        const unassigned = getUnassignedCandidates();
+        if (!searchQuery.trim()) return unassigned;
+        const query = searchQuery.toLowerCase().trim();
+        return unassigned.filter(c => 
+            (c.full_name?.toLowerCase().includes(query)) ||
+            (c.email?.toLowerCase().includes(query)) ||
+            (String(c.nomor_peserta).includes(query))
+        );
+    }, [candidates, groups, searchQuery]);
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Navbar */}
@@ -244,8 +257,8 @@ export default function GroupingPage() {
                     </button>
                     <img src="/asisya.png" alt="Asisya" className="h-10 w-auto" />
                     <div>
-                        <h1 className="text-xl font-bold text-blue-800">Pembagian Kandidat</h1>
-                        <p className="text-xs text-gray-500">Assign kandidat ke admin per ujian</p>
+                        <h1 className="text-xl font-bold text-blue-800">Pembagian Peserta</h1>
+                        <p className="text-xs text-gray-500">Assign peserta ke admin per ujian</p>
                     </div>
                 </div>
             </nav>
@@ -302,10 +315,25 @@ export default function GroupingPage() {
                             <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6">
                                 <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                                     <Users size={20} />
-                                    Kandidat Belum Ditugaskan ({getUnassignedCandidates().length})
+                                    Peserta Belum Ditugaskan ({getUnassignedCandidates().length})
                                 </h3>
+                                {/* Search Input */}
+                                <div className="relative mb-4">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama peserta..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-400"
+                                    />
+                                </div>
                                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                                    {getUnassignedCandidates().map(candidate => (
+                                    {filteredUnassignedCandidates.length === 0 ? (
+                                        <p className="text-sm text-gray-400 italic text-center py-4">
+                                            {searchQuery ? 'Tidak ada peserta yang cocok' : 'Tidak ada peserta belum ditugaskan'}
+                                        </p>
+                                    ) : filteredUnassignedCandidates.map(candidate => (
                                         <div
                                             key={candidate.id}
                                             onClick={(e) => handleCandidateClick(candidate.id, e)}
@@ -338,7 +366,7 @@ export default function GroupingPage() {
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="text-2xl font-bold text-blue-800">{assignedCandidates.length}</div>
-                                                    <div className="text-xs text-gray-500">kandidat</div>
+                                                    <div className="text-xs text-gray-500">peserta</div>
                                                 </div>
                                             </div>
                                             <button
@@ -347,7 +375,7 @@ export default function GroupingPage() {
                                                 className="w-full mb-3 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
                                                 <Hand size={16} />
-                                                Assign {selectedCandidates.size > 0 ? `${selectedCandidates.size} ` : ''}Kandidat ke Admin Ini
+                                                Assign {selectedCandidates.size > 0 ? `${selectedCandidates.size} ` : ''}Peserta ke Admin Ini
                                             </button>
                                             <div className="space-y-2 max-h-48 overflow-y-auto">
                                                 {assignedCandidates.map(candidate => (
@@ -366,7 +394,7 @@ export default function GroupingPage() {
                                                     </div>
                                                 ))}
                                                 {assignedCandidates.length === 0 && (
-                                                    <p className="text-sm text-gray-400 italic text-center py-4">Belum ada kandidat ditugaskan</p>
+                                                    <p className="text-sm text-gray-400 italic text-center py-4">Belum ada peserta ditugaskan</p>
                                                 )}
                                             </div>
                                         </div>
