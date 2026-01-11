@@ -237,6 +237,28 @@ export default function SuperAdminDashboard() {
                         </button>
                     </div>
 
+                    {/* Company Codes Card */}
+                    <div
+                        onClick={() => router.push('/superadmin/company-codes')}
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-amber-300 group"
+                    >
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center group-hover:bg-amber-600 transition-colors">
+                                <Building2 className="text-amber-600 group-hover:text-white transition-colors" size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 group-hover:text-amber-600 transition-colors">Kode Perusahaan</h3>
+                                <p className="text-sm text-gray-500">Kelola kode unik perusahaan</p>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 mb-4">
+                            Buat dan kelola kode perusahaan untuk mengidentifikasi kandidat dari berbagai organisasi.
+                        </p>
+                        <button className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                            Kelola Kode Perusahaan
+                        </button>
+                    </div>
+
                     {/* Platform Settings Card */}
                     <div
                         onClick={() => router.push('/superadmin/settings')}
