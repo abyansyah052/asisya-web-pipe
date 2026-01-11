@@ -7,9 +7,14 @@ import { canAccessAdminFeatures } from '@/lib/roles';
 // Generate new format code: MMYY-XXXX-NNNN
 // MM = Month, YY = Year, XXXX = Internal code (4 digits from company_codes), NNNN = Sequential
 // XXXX is determined by superadmin - can represent type+company or any internal numbering
+
+// 🔴 FIX RACE CONDITION: Use atomic sequence table instead of FOR UPDATE
+// FOR UPDATE only locks EXISTING rows - first code in prefix has NO LOCK!
+// With 800 concurrent users, this can cause duplicate codes!
 async function getNextSequentialNumber(
     client: any,
-    internalCode: string  // 4-digit code from company_codes
+    internalCode: string,  // 4-digit code from company_codes
+    count: number = 1      // How many codes to generate
 ): Promise<{ prefix: string; nextNum: number }> {
     const now = new Date();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -17,21 +22,24 @@ async function getNextSequentialNumber(
     
     const prefix = `${month}${year}-${internalCode}-`;
     
-    // Get max number WITH FOR UPDATE to prevent race condition
-    const result = await client.query(`
-        SELECT code FROM candidate_codes 
-        WHERE code LIKE $1 
-        AND LENGTH(code) = 14
-        ORDER BY code DESC
-        LIMIT 1
-        FOR UPDATE
-    `, [prefix + '%']);
+    // ✅ ATOMIC: Use get_next_code_number function (UPSERT-based, thread-safe)
+    // This handles race conditions properly even with 800 concurrent users
+    const result = await client.query(
+        'SELECT get_next_code_number($1) as next_num',
+        [prefix]
+    );
     
-    let nextNum = 1;
-    if (result.rows.length > 0) {
-        const lastCode = result.rows[0].code;
-        const lastNumStr = lastCode.slice(-4);
-        nextNum = parseInt(lastNumStr, 10) + 1;
+    let nextNum = result.rows[0]?.next_num || 1;
+    
+    // If generating multiple codes, reserve all numbers at once
+    if (count > 1) {
+        // Update sequence to reserve all numbers atomically
+        await client.query(`
+            UPDATE code_sequences 
+            SET next_num = next_num + $1 - 1, 
+                updated_at = CURRENT_TIMESTAMP
+            WHERE prefix = $2
+        `, [count, prefix]);
     }
     
     return { prefix, nextNum };
@@ -115,8 +123,8 @@ export async function POST(req: NextRequest) {
 
             // OPTIMIZED: Generate all codes in batch for new format
             if (!useLegacyFormat) {
-                // Get starting sequence number once (with FOR UPDATE lock)
-                const { prefix, nextNum } = await getNextSequentialNumber(client, internalCode);
+                // ✅ ATOMIC: Get starting sequence number with race condition fix
+                const { prefix, nextNum } = await getNextSequentialNumber(client, internalCode, count);
 
                 // Check if we have enough numbers
                 if (nextNum + count - 1 > 9999) {

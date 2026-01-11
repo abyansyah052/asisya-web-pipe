@@ -101,24 +101,26 @@ export async function POST(req: NextRequest) {
                 const year = String(now.getFullYear()).slice(-2);
                 const prefix = `${month}${year}-${internalCode}-`;
 
-                // Get starting sequence number (with FOR UPDATE lock)
-                const seqResult = await client.query(`
-                    SELECT code FROM candidate_codes 
-                    WHERE code LIKE $1 
-                    AND LENGTH(code) = 14
-                    ORDER BY code DESC
-                    LIMIT 1
-                    FOR UPDATE
-                `, [prefix + '%']);
+                // Filter valid candidates first
+                const validCandidates = candidates.filter((c: any) => c.name?.trim());
 
-                let nextNum = 1;
-                if (seqResult.rows.length > 0) {
-                    const lastCode = seqResult.rows[0].code;
-                    nextNum = parseInt(lastCode.slice(-4), 10) + 1;
+                // ✅ ATOMIC: Use get_next_code_number function (race condition fix)
+                const seqResult = await client.query(
+                    'SELECT get_next_code_number($1) as next_num',
+                    [prefix]
+                );
+                
+                let nextNum = seqResult.rows[0]?.next_num || 1;
+
+                // Reserve all numbers atomically if importing multiple
+                if (validCandidates.length > 1) {
+                    await client.query(`
+                        UPDATE code_sequences 
+                        SET next_num = next_num + $1 - 1, 
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE prefix = $2
+                    `, [validCandidates.length, prefix]);
                 }
-
-                // Filter valid candidates
-                const validCandidates = candidates.filter(c => c.name?.trim());
 
                 // Check if we have enough numbers
                 if (nextNum + validCandidates.length - 1 > 9999) {
@@ -139,15 +141,16 @@ export async function POST(req: NextRequest) {
                     const metadata = JSON.stringify({ candidate_name: name });
 
                     placeholders.push(
-                        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`
+                        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`
                     );
                     values.push(
                         code,
-                        examId || null,
-                        expiresAt,
-                        metadata,
-                        user.id,
-                        companyCodeIdToUse
+                        user.id,                        // created_by
+                        user.organizationId || null,    // admin_id (organization admin)
+                        examId || null,                 // exam_id
+                        expiresAt.toISOString(),        // expires_at
+                        metadata,                       // metadata
+                        companyCodeIdToUse              // company_code_id
                     );
 
                     generatedCodes.push({
@@ -160,8 +163,9 @@ export async function POST(req: NextRequest) {
 
                 if (placeholders.length > 0) {
                     // Single bulk insert - much faster than loop
+                    // ✅ Same column order as generate API
                     await client.query(`
-                        INSERT INTO candidate_codes (code, exam_id, expires_at, metadata, created_by, company_code_id)
+                        INSERT INTO candidate_codes (code, created_by, admin_id, exam_id, expires_at, metadata, company_code_id)
                         VALUES ${placeholders.join(', ')}
                     `, values);
                 }
@@ -191,11 +195,12 @@ export async function POST(req: NextRequest) {
 
                     const metadata = JSON.stringify({ candidate_name: name });
 
+                    // ✅ Same column order as generate API
                     const result = await client.query(
-                        `INSERT INTO candidate_codes (code, exam_id, expires_at, metadata, created_by)
-                         VALUES ($1, $2, $3, $4::jsonb, $5)
+                        `INSERT INTO candidate_codes (code, created_by, admin_id, exam_id, expires_at, metadata)
+                         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
                          RETURNING id, code, expires_at`,
-                        [code, examId || null, expiresAt, metadata, user.id]
+                        [code, user.id, user.organizationId || null, examId || null, expiresAt, metadata]
                     );
 
                     if (result.rows.length > 0) {
