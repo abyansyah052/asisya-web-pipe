@@ -39,7 +39,7 @@ const STATIC_PATHS = [
     '/fonts',
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // 1. SKIP STATIC ASSETS - Critical for performance
