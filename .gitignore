@@ -44,3 +44,6 @@ next-env.d.ts
 # unused/completed documentation
 /Gapenting/
 /screens/
+database-full-vps.sql
+database-schema-vps.sql
+database-staging.sql
