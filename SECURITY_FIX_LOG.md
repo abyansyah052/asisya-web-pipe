@@ -5,7 +5,46 @@
 
 ## 📋 RINGKASAN FIX
 
+### Security Fixes (13 Issues)
+| No | Issue | Severity | Status |
+|----|-------|----------|--------|
+| 1 | Autosave N+1 Query | CRITICAL | ✅ FIXED |
+| 2 | Exam Ownership Not Validated | CRITICAL | ✅ FIXED |
+| 3 | Exam Timer Bypass | CRITICAL | ✅ FIXED |
+| 4 | Answer Replay Attack | CRITICAL | ✅ FIXED |
+| 5 | No Exam Access Control | CRITICAL | ✅ FIXED |
+| 6 | Multiple Active Attempts | CRITICAL | ✅ FIXED |
+| 7 | Question Marks Exposed | HIGH | ✅ FIXED |
+| 8 | SQL Injection Login | CRITICAL | ✅ FIXED |
+| 9 | Hardcoded JWT Secret | CRITICAL | ✅ FIXED |
+| 10 | No Password Validation | HIGH | ✅ FIXED |
+| 11 | Missing Security Headers | HIGH | ✅ FIXED |
+| 12 | N+1 Questions API | HIGH | ✅ FIXED |
+| 13 | No Input Sanitization | HIGH | ✅ FIXED |
 
+### Performance & Operational Fixes (8 Issues)
+| No | Issue | Severity | Status |
+|----|-------|----------|--------|
+| 14 | Memory Cache Leak (OOM Crash) | CRITICAL | ✅ FIXED |
+| 15 | No Health Check Endpoint | HIGH | ✅ FIXED |
+| 16 | Missing Database Indexes | HIGH | ✅ FIXED |
+| 17 | Rate Limit Fail-Closed | HIGH | ✅ FIXED |
+| 18 | SELECT * Anti-Pattern | MEDIUM | ✅ FIXED |
+| 19 | No Error Logging Helper | MEDIUM | ✅ FIXED |
+| 20 | Candidate Login Race Condition | HIGH | ✅ FIXED |
+| 21 | CI/CD Workflow Error | HIGH | ✅ FIXED |
+
+### Infrastructure Fixes (1 Issue)
+| No | Issue | Severity | Status |
+|----|-------|----------|--------|
+| 22 | No Database Backup | CRITICAL | ✅ FIXED |
+
+### UI Updates
+| No | Change | Status |
+|----|--------|--------|
+| 1 | Logo dipindah ke bawah kanan (desktop) | ✅ DONE |
+| 2 | "Portal Khusus Kandidat" → "Portal Khusus Peserta" | ✅ DONE |
+| 3 | "psikolog" → "Psikolog" (kapitalisasi) | ✅ DONE |
 
 ---
 
