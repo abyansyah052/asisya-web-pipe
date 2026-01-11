@@ -3,9 +3,9 @@ name: CI/CD Pipeline (Staging & Production)
 on:
   push:
     branches: 
-      - main        # Production → Hostinger VPS
-      - develop     # Staging → Vercel
-      - staging     # Staging → Vercel
+      - develop     # Auto deploy ke Staging (Vercel)
+      - staging     # Auto deploy ke Staging (Vercel)
+      - main        # Production → Hostinger VPS (HARUS via approval)
   pull_request:
     branches: [main, develop, staging]
   workflow_dispatch:
@@ -18,13 +18,18 @@ on:
         options:
           - staging
           - production
+      skip_approval:
+        description: 'Skip manual approval (emergency only)'
+        required: false
+        type: boolean
+        default: false
 
 env:
   NODE_VERSION: '20'
 
 jobs:
   # ============================================
-  # LINT & TEST (runs on all branches)
+  # LINT & TYPE CHECK (runs on all branches)
   # ============================================
   lint-and-test:
     name: 🔍 Lint & Type Check
@@ -62,6 +67,9 @@ jobs:
       (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/staging') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
     
+    outputs:
+      staging_url: ${{ steps.deploy.outputs.url }}
+    
     environment:
       name: staging
       url: ${{ steps.deploy.outputs.url }}
@@ -76,6 +84,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: 📥 Install dependencies
+        run: npm ci
+
       - name: 📥 Install Vercel CLI
         run: npm install -g vercel@latest
 
@@ -85,7 +96,6 @@ jobs:
       - name: 🔨 Build Project
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
         env:
-          # Staging environment variables
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.STAGING_APP_URL }}
@@ -119,14 +129,71 @@ jobs:
           echo "🌐 URL: ${{ steps.deploy.outputs.url }}"
 
   # ============================================
+  # MANUAL APPROVAL FOR PRODUCTION
+  # ============================================
+  request-production-approval:
+    name: 📋 Request Production Approval
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: |
+      github.ref == 'refs/heads/main' && 
+      github.event_name == 'push'
+    
+    outputs:
+      approved: ${{ steps.approval.outputs.approval-status }}
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📋 Request Manual Approval
+        id: approval
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: abyansyah052
+          minimum-approvals: 1
+          issue-title: "🚀 Production Deployment Request - ${{ github.sha }}"
+          issue-body: |
+            ## 🚀 Production Deployment Request
+            
+            **Commit:** `${{ github.sha }}`
+            **Branch:** `main`
+            **Triggered by:** @${{ github.actor }}
+            **Time:** ${{ github.event.head_commit.timestamp }}
+            
+            ### 📝 Commit Message
+            ```
+            ${{ github.event.head_commit.message }}
+            ```
+            
+            ### ✅ Pre-deployment Checklist
+            - [ ] Tested on staging environment
+            - [ ] No breaking changes
+            - [ ] Database migrations applied (if any)
+            - [ ] Environment variables updated (if needed)
+            
+            ---
+            
+            ### 🎯 Actions
+            - **To APPROVE**: Comment `approve`, `approved`, `lgtm`, or `yes`
+            - **To DENY**: Comment `deny`, `denied`, or `no`
+            
+            ⚠️ **Warning**: This will deploy to production at https://kfarma.asisyaconsulting.id
+          exclude-workflow-initiator-as-approver: false
+          fail-on-denial: true
+          additional-approved-words: 'ship it,deploy,go'
+          additional-denied-words: 'stop,wait,hold'
+
+  # ============================================
   # PRODUCTION DEPLOYMENT → HOSTINGER VPS
   # ============================================
   deploy-production:
     name: 🚀 Deploy to Production (Hostinger VPS)
     runs-on: ubuntu-latest
-    needs: lint-and-test
+    needs: request-production-approval
     if: |
-      github.ref == 'refs/heads/main' ||
+      needs.request-production-approval.outputs.approved == 'approved' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
     
     environment:
@@ -204,12 +271,103 @@ jobs:
           echo "🌐 URL: https://kfarma.asisyaconsulting.id"
 
   # ============================================
+  # MANUAL PRODUCTION DEPLOY (via workflow_dispatch)
+  # ============================================
+  deploy-production-manual:
+    name: 🚀 Manual Production Deploy
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.environment == 'production'
+    
+    environment:
+      name: production
+      url: https://kfarma.asisyaconsulting.id
+    
+    steps:
+      - name: 📋 Manual Deploy Info
+        run: |
+          echo "📋 Manual Production Deploy"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Skip approval: ${{ github.event.inputs.skip_approval }}"
+
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔨 Build Next.js app
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
+      - name: 📁 Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r .next deploy/
+          cp -r public deploy/
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          cp next.config.ts deploy/
+          cd deploy && zip -r ../build.zip .
+
+      - name: 📤 Upload to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "build.zip"
+          target: "/var/www/asisya-web"
+
+      - name: 🚀 Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /var/www/asisya-web
+            
+            echo "📦 Extracting build..."
+            unzip -o build.zip
+            rm build.zip
+            
+            echo "📥 Installing production dependencies..."
+            npm ci --production
+            
+            echo "🔄 Restarting application..."
+            pm2 restart asisya-web || pm2 start npm --name "asisya-web" -- start
+            pm2 save
+            
+            echo "✅ Deploy complete!"
+
+      - name: ✅ Production deployment successful
+        run: |
+          echo "🎉 Successfully deployed to Production!"
+          echo "🌐 URL: https://kfarma.asisyaconsulting.id"
+
+  # ============================================
   # NOTIFY ON FAILURE
   # ============================================
   notify-failure:
     name: 📢 Notify on Failure
     runs-on: ubuntu-latest
-    needs: [deploy-staging, deploy-production]
+    needs: [deploy-staging, deploy-production, deploy-production-manual]
     if: failure()
     
     steps:
@@ -218,3 +376,4 @@ jobs:
           echo "❌ Deployment failed!"
           echo "Branch: ${{ github.ref }}"
           echo "Commit: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
