@@ -5,6 +5,13 @@
   "installCommand": "npm ci",
   "devCommand": "npm run dev",
   "regions": ["sin1"],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "develop": true
+    }
+  },
+  "alias": ["asisya-web-pipe.vercel.app"],
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30

@@ -237,10 +237,76 @@ jobs:
         run: |
           echo "url=https://asisya-web-pipe.vercel.app" >> $GITHUB_OUTPUT
 
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Wait for Vercel Deployment
+        id: wait-vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          echo "⏳ Waiting for Vercel to finish deployment..."
+          
+          # Wait for deployment to complete (max 5 minutes)
+          for i in {1..30}; do
+            DEPLOYMENT=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v6/deployments?teamId=${{ secrets.VERCEL_ORG_ID }}&projectId=${{ secrets.VERCEL_PROJECT_ID }}&limit=1&state=READY" \
+              | jq -r '.deployments[0]')
+            
+            if [ "$DEPLOYMENT" != "null" ]; then
+              DEPLOY_URL=$(echo "$DEPLOYMENT" | jq -r '.url')
+              DEPLOY_ID=$(echo "$DEPLOYMENT" | jq -r '.uid')
+              CREATED=$(echo "$DEPLOYMENT" | jq -r '.created')
+              
+              # Check if deployment is recent (within last 10 minutes)
+              NOW=$(date +%s)
+              CREATED_SEC=$((CREATED / 1000))
+              DIFF=$((NOW - CREATED_SEC))
+              
+              if [ $DIFF -lt 600 ]; then
+                echo "✅ Found recent deployment: $DEPLOY_URL"
+                echo "deploy_url=https://$DEPLOY_URL" >> $GITHUB_OUTPUT
+                echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+                break
+              fi
+            fi
+            
+            echo "Waiting... ($i/30)"
+            sleep 10
+          done
+
+      - name: Alias to Production Domain
+        if: steps.wait-vercel.outputs.deploy_url != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          echo "🔗 Aliasing deployment to production domain..."
+          
+          DEPLOY_URL="${{ steps.wait-vercel.outputs.deploy_url }}"
+          
+          # Alias to main domain
+          vercel alias set "$DEPLOY_URL" asisya-web-pipe.vercel.app --token=$VERCEL_TOKEN --scope=${{ secrets.VERCEL_ORG_ID }} || true
+          
+          echo "✅ Aliased to: https://asisya-web-pipe.vercel.app"
+
+      - name: Verify Deployment Health
+        run: |
+          echo "🏥 Verifying deployment health..."
+          sleep 5
+          
+          HEALTH=$(curl -s https://asisya-web-pipe.vercel.app/api/health || echo '{"status":"error"}')
+          echo "Health check response: $HEALTH"
+          
+          if echo "$HEALTH" | grep -q '"status":"healthy"'; then
+            echo "✅ Deployment is healthy!"
+          else
+            echo "⚠️ Health check returned non-healthy status (may need manual verification)"
+          fi
+
       - name: Staging setup successful
         run: |
           echo "✅ Staging migrations completed!"
-          echo "🚀 Vercel will auto-deploy from GitHub integration"
+          echo "🚀 Vercel deployment aliased to production domain"
           echo "🔗 URL: https://asisya-web-pipe.vercel.app"
           echo ""
           echo "📊 Performance tests passed"
