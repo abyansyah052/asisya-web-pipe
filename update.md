@@ -166,4 +166,4 @@ Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi, gejala episode 
 
 format hasil di excel sama kaya pss [nama,gender,total nilai, output hasil]
 
-perhatikan ya yang srq kamu harus benar karena jawabanya dia bervariasi berdasarkan interpretasi dulu, lalu lihat kesimpulan dari kesimpulan kamu bisa memilih template output hasil.
+perhatikan ya yang srq kamu harus benar karena jawabanya dia bervariasi berdasarkan interpretasi dulu, lalu lihat kesimpulan dari kesimpulan kamu bisa memilih template output

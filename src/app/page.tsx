@@ -81,10 +81,10 @@ export default function CandidateLoginPage() {
                 Portal Khusus Peserta
               </div>
             </div>
-            <img 
-              src="/kimia-farma-logo.jpg" 
-              alt="Kimia Farma" 
-              className="h-12 lg:h-14 w-auto rounded-xl shadow-xl shadow-black/30" 
+            <img
+              src="/kimia-farma-logo.jpg"
+              alt="Kimia Farma"
+              className="h-12 lg:h-14 w-auto rounded-xl shadow-xl shadow-black/30"
             />
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function CandidateLoginPage() {
                   onChange={handleCodeChange}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 h-14 px-4 pr-12 text-lg text-[#071F56] placeholder-slate-400 focus:border-[#0993A9] focus:ring-2 focus:ring-[#0993A9]/20 transition-all outline-none font-mono tracking-widest text-center uppercase"
                   placeholder="XXXX - XXXX - XXXX"
-                  maxLength={19}
+                  maxLength={14}
                   required
                 />
                 <KeyRound size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0993A9]" />
@@ -140,7 +140,7 @@ export default function CandidateLoginPage() {
 
             <button
               type="submit"
-              disabled={loading || candidateCode.length < 19}
+              disabled={loading || candidateCode.length < 14}
               className="w-full bg-gradient-to-r from-[#071F56] to-[#0993A9] hover:from-[#0a2a70] hover:to-[#0ba8c2] text-white h-12 rounded-xl text-sm font-bold tracking-wide transition-all shadow-lg shadow-[#0993A9]/25 hover:shadow-xl hover:shadow-[#0993A9]/30 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
             >
               {loading ? (
