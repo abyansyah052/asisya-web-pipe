@@ -216,7 +216,7 @@ export async function GET(
                     // ✅ FIX: Use stored SRQ result instead of recalculating
                     // This avoids issues when option IDs have changed
                     let totalScore = attempt.score || 0;
-                    let outputText = 'Normal';
+                    let outputText = 'Normal. Tidak terdapat gejala psikologis.';
                     let overallStatus = 'Normal';
                     
                     // Parse srq_conclusion for status
@@ -230,9 +230,18 @@ export async function GET(
                             const srqResult = typeof attempt.srq_result === 'string' 
                                 ? JSON.parse(attempt.srq_result) 
                                 : attempt.srq_result;
-                            totalScore = srqResult.totalScore ?? totalScore;
-                            outputText = srqResult.outputText ?? outputText;
-                            overallStatus = srqResult.overallStatus === 'normal' ? 'Normal' : 'Tidak Normal';
+                            
+                            // Handle old format: { totalScore, outputText, overallStatus }
+                            if (srqResult.totalScore !== undefined) {
+                                totalScore = srqResult.totalScore;
+                                outputText = srqResult.outputText ?? outputText;
+                                overallStatus = srqResult.overallStatus === 'normal' ? 'Normal' : 'Tidak Normal';
+                            }
+                            // Handle new format: { answers, result: { resultText, conclusion }, type }
+                            else if (srqResult.result) {
+                                outputText = srqResult.result.resultText ?? outputText;
+                                overallStatus = srqResult.result.conclusion?.includes('Tidak Normal') ? 'Tidak Normal' : 'Normal';
+                            }
                         } catch (e) {
                             console.error('Error parsing srq_result:', e);
                         }
