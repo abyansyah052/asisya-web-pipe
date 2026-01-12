@@ -115,8 +115,45 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         [q.text, q.marks, q.id]
                     );
 
-                    // Delete existing options for this question
-                    await client.query('DELETE FROM options WHERE question_id = $1', [q.id]);
+                    // ✅ FIX: Preserve option IDs to avoid orphaning exam_answers
+                    // Get existing option IDs for this question
+                    const existingOptionsResult = await client.query(
+                        'SELECT id, text FROM options WHERE question_id = $1 ORDER BY id',
+                        [q.id]
+                    );
+                    const existingOptions = existingOptionsResult.rows;
+                    const existingOptionIds = new Set(existingOptions.map((o: { id: number }) => o.id));
+                    
+                    // Track which existing options to keep
+                    const optionIdsToKeep = new Set<number>();
+                    
+                    for (const opt of q.options) {
+                        if (opt.id && existingOptionIds.has(opt.id)) {
+                            // Update existing option
+                            await client.query(
+                                'UPDATE options SET text = $1, is_correct = $2 WHERE id = $3',
+                                [opt.text, opt.isCorrect, opt.id]
+                            );
+                            optionIdsToKeep.add(opt.id);
+                        } else {
+                            // Insert new option
+                            await client.query(
+                                'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
+                                [q.id, opt.text, opt.isCorrect]
+                            );
+                        }
+                    }
+                    
+                    // Delete options that are no longer in the list
+                    const optionsToDelete = existingOptions
+                        .filter((o: { id: number }) => !optionIdsToKeep.has(o.id))
+                        .map((o: { id: number }) => o.id);
+                    if (optionsToDelete.length > 0) {
+                        await client.query(
+                            'DELETE FROM options WHERE id = ANY($1::int[])',
+                            [optionsToDelete]
+                        );
+                    }
                 } else {
                     // Insert new question
                     const questionResult = await client.query(
@@ -124,14 +161,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                         [examId, q.text, q.marks]
                     );
                     questionId = questionResult.rows[0].id;
-                }
 
-                // Insert options (always fresh to ensure is_correct is correct)
-                for (const opt of q.options) {
-                    await client.query(
-                        'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
-                        [questionId, opt.text, opt.isCorrect]
-                    );
+                    // Insert options for new question
+                    for (const opt of q.options) {
+                        await client.query(
+                            'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
+                            [questionId, opt.text, opt.isCorrect]
+                        );
+                    }
                 }
             }
 

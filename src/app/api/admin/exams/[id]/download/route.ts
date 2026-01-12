@@ -27,28 +27,41 @@ export async function GET(
 
         const client = await pool.connect();
         try {
-            // Get exam info including exam_type
-            const examRes = await client.query('SELECT title, exam_type FROM exams WHERE id = $1', [examId]);
-            const examTitle = examRes.rows[0]?.title || 'Ujian';
-            const examType = examRes.rows[0]?.exam_type || 'general';
+            // ✅ OPTIMIZED: Single CTE query to get exam info + question count + questions
+            const examDataRes = await client.query(`
+                WITH exam_info AS (
+                    SELECT id, title, exam_type FROM exams WHERE id = $1
+                ),
+                question_list AS (
+                    SELECT id FROM questions WHERE exam_id = $1 ORDER BY id
+                )
+                SELECT 
+                    (SELECT title FROM exam_info) as title,
+                    (SELECT exam_type FROM exam_info) as exam_type,
+                    (SELECT COUNT(*) FROM question_list) as question_count,
+                    COALESCE((SELECT json_agg(id ORDER BY id) FROM question_list), '[]'::json) as question_ids
+            `, [examId]);
 
-            // Get question count for this exam
-            const questionCountRes = await client.query(
-                'SELECT COUNT(*) as count FROM questions WHERE exam_id = $1',
-                [examId]
-            );
-            const questionCount = parseInt(questionCountRes.rows[0].count) || 0;
+            const examTitle = examDataRes.rows[0]?.title || 'Ujian';
+            const examType = examDataRes.rows[0]?.exam_type || 'general';
+            const questionCount = parseInt(examDataRes.rows[0]?.question_count) || 0;
+            const questionIds: number[] = examDataRes.rows[0]?.question_ids || [];
 
             // Get all completed attempts with user info
             // ✅ Use COALESCE to prefer user_profiles.full_name over users.full_name
             // ✅ Use DISTINCT ON to only get the latest attempt per user
             // ✅ Include access code as nomor_peserta
+            // ✅ Include PSS/SRQ results for Excel export
             const attemptsRes = await client.query(
                 `SELECT DISTINCT ON (ea.user_id)
                     ea.id as attempt_id,
                     ea.user_id,
                     ea.score,
                     ea.end_time,
+                    ea.pss_result,
+                    ea.pss_category,
+                    ea.srq_result,
+                    ea.srq_conclusion,
                     COALESCE(up.full_name, u.full_name, u.username) as full_name,
                     u.username,
                     cc.code as nomor_peserta
@@ -78,12 +91,7 @@ export async function GET(
                 }
             }
 
-            // Get all questions for this exam (ordered)
-            const questionsRes = await client.query(
-                'SELECT id FROM questions WHERE exam_id = $1 ORDER BY id',
-                [examId]
-            );
-            const questionIds = questionsRes.rows.map((q: any) => q.id);
+            // ✅ REMOVED: questionIds already fetched in CTE above
 
             // Get all answers for these attempts
             const attemptIds = attempts.map((a: any) => a.attempt_id);
@@ -165,29 +173,22 @@ export async function GET(
 
                 attempts.forEach((attempt: any, index: number) => {
                     const profile = profilesMap[attempt.user_id] || {};
-                    const answers = answersMap[attempt.attempt_id] || {};
-
-                    // Extract answer values (0-4) for PSS
-                    const answerValues: number[] = [];
-                    questionIds.forEach((qId: number) => {
-                        const answerData = answers[qId];
-                        // PSS uses 0-4 scale, try to parse from answer text or default to 0
-                        let value = 0;
-                        if (answerData && answerData.answer) {
-                            // Try to find matching option value
-                            const option = PSS_OPTIONS.find(o => o.label === answerData.answer || o.labelEn === answerData.answer);
-                            value = (option?.value ?? parseInt(answerData.answer)) || 0;
-                        }
-                        answerValues.push(value);
-                    });
-
-                    // Calculate PSS score if we have 10 answers
-                    let pssResult = { totalScore: 0, levelLabel: 'N/A' };
-                    if (answerValues.length === 10) {
+                    
+                    // ✅ FIX: Use stored PSS result instead of recalculating
+                    // This avoids issues when option IDs have changed
+                    let totalScore = attempt.score || 0;
+                    let levelLabel = attempt.pss_category || 'N/A';
+                    
+                    // If pss_result is stored as JSON, parse it for more detail
+                    if (attempt.pss_result) {
                         try {
-                            pssResult = calculatePSSScore(answerValues);
+                            const pssResult = typeof attempt.pss_result === 'string' 
+                                ? JSON.parse(attempt.pss_result) 
+                                : attempt.pss_result;
+                            totalScore = pssResult.totalScore ?? totalScore;
+                            levelLabel = pssResult.levelLabel ?? levelLabel;
                         } catch (e) {
-                            console.error('PSS scoring error:', e);
+                            console.error('Error parsing pss_result:', e);
                         }
                     }
 
@@ -195,8 +196,8 @@ export async function GET(
                         index + 1,
                         attempt.full_name || attempt.username || '-',
                         profile.gender || '-',
-                        pssResult.totalScore,
-                        pssResult.levelLabel
+                        totalScore,
+                        levelLabel
                     ]);
                 });
 
@@ -211,32 +212,29 @@ export async function GET(
 
                 attempts.forEach((attempt: any, index: number) => {
                     const profile = profilesMap[attempt.user_id] || {};
-                    const answers = answersMap[attempt.attempt_id] || {};
-
-                    // Extract answer values (0 or 1) for SRQ-29
-                    const answerValues: number[] = [];
-                    questionIds.forEach((qId: number) => {
-                        const answerData = answers[qId];
-                        // SRQ uses Yes/No (1/0)
-                        let value = 0;
-                        if (answerData && answerData.answer) {
-                            const option = SRQ29_OPTIONS.find(o => o.label === answerData.answer || o.labelEn === answerData.answer);
-                            value = option?.value ?? (answerData.answer.toLowerCase() === 'ya' || answerData.answer.toLowerCase() === 'yes' ? 1 : 0);
-                        }
-                        answerValues.push(value);
-                    });
-
-                    // Calculate SRQ-29 score if we have 29 answers
-                    let srqResult: { totalScore: number; outputText: string; overallStatus: 'normal' | 'abnormal' } = { 
-                        totalScore: 0, 
-                        outputText: 'Normal. Tidak terdapat gejala psikologis seperti cemas dan depresi. Tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik, gejala PTSD/gejala stress setelah trauma',
-                        overallStatus: 'normal' 
-                    };
-                    if (answerValues.length === 29) {
+                    
+                    // ✅ FIX: Use stored SRQ result instead of recalculating
+                    // This avoids issues when option IDs have changed
+                    let totalScore = attempt.score || 0;
+                    let outputText = 'Normal';
+                    let overallStatus = 'Normal';
+                    
+                    // Parse srq_conclusion for status
+                    if (attempt.srq_conclusion) {
+                        overallStatus = attempt.srq_conclusion.includes('Tidak Normal') ? 'Tidak Normal' : 'Normal';
+                    }
+                    
+                    // If srq_result is stored as JSON, parse it for more detail
+                    if (attempt.srq_result) {
                         try {
-                            srqResult = calculateSRQ29Score(answerValues);
+                            const srqResult = typeof attempt.srq_result === 'string' 
+                                ? JSON.parse(attempt.srq_result) 
+                                : attempt.srq_result;
+                            totalScore = srqResult.totalScore ?? totalScore;
+                            outputText = srqResult.outputText ?? outputText;
+                            overallStatus = srqResult.overallStatus === 'normal' ? 'Normal' : 'Tidak Normal';
                         } catch (e) {
-                            console.error('SRQ-29 scoring error:', e);
+                            console.error('Error parsing srq_result:', e);
                         }
                     }
 
@@ -244,9 +242,9 @@ export async function GET(
                         index + 1,
                         attempt.full_name || attempt.username || '-',
                         profile.gender || '-',
-                        srqResult.totalScore,
-                        srqResult.outputText,
-                        srqResult.overallStatus === 'normal' ? 'Normal' : 'Tidak Normal'
+                        totalScore,
+                        outputText,
+                        overallStatus
                     ]);
                 });
 
