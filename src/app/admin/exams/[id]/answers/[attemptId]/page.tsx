@@ -121,6 +121,61 @@ export default function ExamAnswersDetailPage({
         
         const isNormal = srqConclusion === 'Normal';
         
+        // Handle both old and new format
+        // Old: result.anxiety, result.substance, result.psychotic, result.ptsd, result.resultText
+        // New: neurosis, psychosis, ptsd, substanceUse, outputText
+        const hasOldFormat = srqResult.result !== undefined;
+        const hasNewFormat = srqResult.neurosis !== undefined || srqResult.categories !== undefined;
+        
+        // Extract scores based on format
+        let cemasDepresiScore = 0;
+        let zatScore = 0;
+        let psikotikScore = 0;
+        let ptsdScore = 0;
+        let cemasDepresiPositive = false;
+        let zatPositive = false;
+        let psikotikPositive = false;
+        let ptsdPositive = false;
+        let outputText = '';
+        
+        if (hasNewFormat) {
+            // New format with categories array
+            if (srqResult.categories) {
+                const cemasDepresi = srqResult.categories.find((c: any) => c.category === 'cemasDepresi');
+                const zat = srqResult.categories.find((c: any) => c.category === 'penggunaanZat');
+                const psikotik = srqResult.categories.find((c: any) => c.category === 'psikotik');
+                const ptsd = srqResult.categories.find((c: any) => c.category === 'ptsd');
+                
+                cemasDepresiScore = cemasDepresi?.score ?? srqResult.neurosis ?? 0;
+                zatScore = zat?.score ?? srqResult.substanceUse ?? 0;
+                psikotikScore = psikotik?.score ?? srqResult.psychosis ?? 0;
+                ptsdScore = ptsd?.score ?? srqResult.ptsd ?? 0;
+                
+                cemasDepresiPositive = cemasDepresi?.positive ?? cemasDepresiScore >= 5;
+                zatPositive = zat?.positive ?? zatScore >= 1;
+                psikotikPositive = psikotik?.positive ?? psikotikScore >= 1;
+                ptsdPositive = ptsd?.positive ?? ptsdScore >= 1;
+            } else {
+                cemasDepresiScore = srqResult.neurosis ?? 0;
+                zatScore = srqResult.substanceUse ?? 0;
+                psikotikScore = srqResult.psychosis ?? 0;
+                ptsdScore = srqResult.ptsd ?? 0;
+                
+                cemasDepresiPositive = cemasDepresiScore >= 5;
+                zatPositive = zatScore >= 1;
+                psikotikPositive = psikotikScore >= 1;
+                ptsdPositive = ptsdScore >= 1;
+            }
+            outputText = srqResult.outputText || '';
+        } else if (hasOldFormat) {
+            // Old format
+            cemasDepresiPositive = srqResult.result?.anxiety ?? false;
+            zatPositive = srqResult.result?.substance ?? false;
+            psikotikPositive = srqResult.result?.psychotic ?? false;
+            ptsdPositive = srqResult.result?.ptsd ?? false;
+            outputText = srqResult.result?.resultText || '';
+        }
+        
         return (
             <div className={`bg-white p-4 sm:p-6 rounded-xl shadow-sm border-2 ${isNormal ? 'border-green-200' : 'border-orange-200'} mb-4 sm:mb-6`}>
                 <div className="flex items-center gap-3 mb-4">
@@ -138,63 +193,102 @@ export default function ExamAnswersDetailPage({
                         <div className="text-2xl font-bold text-blue-600">{attempt.score}</div>
                         <div className="text-xs text-blue-600 font-medium">Total "Ya"</div>
                     </div>
-                    <div className={`${isNormal ? 'bg-green-50' : 'bg-orange-50'} p-3 rounded-lg text-center`}>
-                        <div className={`text-sm font-bold ${isNormal ? 'text-green-700' : 'text-orange-700'}`}>{srqConclusion.split(' - ')[0]}</div>
+                    <div className={`${isNormal ? 'bg-green-50' : 'bg-orange-50'} p-3 rounded-lg text-center col-span-1 sm:col-span-3`}>
+                        <div className={`text-sm font-bold ${isNormal ? 'text-green-700' : 'text-orange-700'}`}>{srqConclusion}</div>
                         <div className={`text-xs ${isNormal ? 'text-green-600' : 'text-orange-600'} font-medium`}>Status</div>
                     </div>
                 </div>
                 
-                {/* Category breakdown if available */}
-                {srqResult && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100">
-                        {srqResult.neurosis !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.neurosis >= 5 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.neurosis >= 5 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.neurosis}/20</div>
-                                <div className="text-[10px] text-gray-500">Cemas/Depresi</div>
-                                {srqResult.neurosis >= 5 && <span className="text-[8px] text-red-500 font-medium">≥5</span>}
-                            </div>
-                        )}
-                        {srqResult.substanceUse !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.substanceUse >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.substanceUse >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.substanceUse}/1</div>
-                                <div className="text-[10px] text-gray-500">Zat/Narkoba</div>
-                                {srqResult.substanceUse >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
-                            </div>
-                        )}
-                        {srqResult.psychosis !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.psychosis >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.psychosis >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.psychosis}/3</div>
-                                <div className="text-[10px] text-gray-500">Psikotik</div>
-                                {srqResult.psychosis >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
-                            </div>
-                        )}
-                        {srqResult.ptsd !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.ptsd >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.ptsd >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.ptsd}/5</div>
-                                <div className="text-[10px] text-gray-500">PTSD</div>
-                                {srqResult.ptsd >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
-                            </div>
-                        )}
+                {/* Category breakdown with proper scores */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100">
+                    <div className={`p-3 rounded-lg text-center ${cemasDepresiPositive ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div className={`text-xl font-bold ${cemasDepresiPositive ? 'text-red-600' : 'text-gray-700'}`}>
+                            {hasNewFormat ? `${cemasDepresiScore}/20` : (cemasDepresiPositive ? '✓' : '✗')}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Cemas/Depresi</div>
+                        <div className={`text-[10px] ${cemasDepresiPositive ? 'text-red-500' : 'text-gray-400'}`}>
+                            {cemasDepresiPositive ? '≥5 Ya' : '<5 Ya'}
+                        </div>
                     </div>
-                )}
-                
-                {/* Full output text */}
-                {srqResult?.outputText && (
-                    <div className={`mt-4 p-4 rounded-lg ${isNormal ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-                        <p className={`text-sm ${isNormal ? 'text-green-800' : 'text-orange-800'}`}>
-                            <strong>Kesimpulan:</strong> {srqResult.outputText}
-                        </p>
+                    <div className={`p-3 rounded-lg text-center ${zatPositive ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div className={`text-xl font-bold ${zatPositive ? 'text-red-600' : 'text-gray-700'}`}>
+                            {hasNewFormat ? `${zatScore}/1` : (zatPositive ? '✓' : '✗')}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Zat/Narkoba</div>
+                        <div className={`text-[10px] ${zatPositive ? 'text-red-500' : 'text-gray-400'}`}>
+                            {zatPositive ? '≥1 Ya' : '0 Ya'}
+                        </div>
                     </div>
-                )}
+                    <div className={`p-3 rounded-lg text-center ${psikotikPositive ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div className={`text-xl font-bold ${psikotikPositive ? 'text-red-600' : 'text-gray-700'}`}>
+                            {hasNewFormat ? `${psikotikScore}/3` : (psikotikPositive ? '✓' : '✗')}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">Psikotik</div>
+                        <div className={`text-[10px] ${psikotikPositive ? 'text-red-500' : 'text-gray-400'}`}>
+                            {psikotikPositive ? '≥1 Ya' : '0 Ya'}
+                        </div>
+                    </div>
+                    <div className={`p-3 rounded-lg text-center ${ptsdPositive ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-200'}`}>
+                        <div className={`text-xl font-bold ${ptsdPositive ? 'text-red-600' : 'text-gray-700'}`}>
+                            {hasNewFormat ? `${ptsdScore}/5` : (ptsdPositive ? '✓' : '✗')}
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium">PTSD</div>
+                        <div className={`text-[10px] ${ptsdPositive ? 'text-red-500' : 'text-gray-400'}`}>
+                            {ptsdPositive ? '≥1 Ya' : '0 Ya'}
+                        </div>
+                    </div>
+                </div>
                 
-                <div className="text-sm text-gray-600 mt-4 pt-4 border-t border-gray-100">
-                    <strong>Interpretasi:</strong>
-                    <ul className="mt-2 space-y-1 text-xs">
-                        <li>• Cemas/Depresi (Q1-20): ≥5 Ya = indikasi gangguan</li>
-                        <li>• Penggunaan Zat (Q21): ≥1 Ya = indikasi gangguan</li>
-                        <li>• Psikotik (Q22-24): ≥1 Ya = indikasi gangguan</li>
-                        <li>• PTSD (Q25-29): ≥1 Ya = indikasi gangguan</li>
-                    </ul>
+                {/* Full output text - THE 8 DISTINCT RESULTS */}
+                <div className={`mt-4 p-4 rounded-xl ${isNormal ? 'bg-green-50 border-2 border-green-200' : 'bg-orange-50 border-2 border-orange-200'}`}>
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${isNormal ? 'bg-green-100' : 'bg-orange-100'} shrink-0`}>
+                            <FileText className={`w-5 h-5 ${isNormal ? 'text-green-600' : 'text-orange-600'}`} />
+                        </div>
+                        <div>
+                            <h4 className={`font-bold mb-2 ${isNormal ? 'text-green-800' : 'text-orange-800'}`}>
+                                Kesimpulan Hasil
+                            </h4>
+                            <p className={`text-sm leading-relaxed ${isNormal ? 'text-green-700' : 'text-orange-700'}`}>
+                                {outputText || srqConclusion}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Interpretation guide */}
+                <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <h4 className="font-bold text-gray-700 mb-3 text-sm">Panduan Interpretasi SRQ-29</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">1</span>
+                            <div>
+                                <span className="font-medium text-gray-700">Cemas/Depresi (Q1-20)</span>
+                                <p className="text-gray-500">≥5 jawaban Ya = indikasi gangguan</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">2</span>
+                            <div>
+                                <span className="font-medium text-gray-700">Penggunaan Zat (Q21)</span>
+                                <p className="text-gray-500">≥1 jawaban Ya = indikasi gangguan</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">3</span>
+                            <div>
+                                <span className="font-medium text-gray-700">Psikotik (Q22-24)</span>
+                                <p className="text-gray-500">≥1 jawaban Ya = indikasi gangguan</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded bg-blue-100 text-blue-700 flex items-center justify-center font-bold shrink-0">4</span>
+                            <div>
+                                <span className="font-medium text-gray-700">PTSD (Q25-29)</span>
+                                <p className="text-gray-500">≥1 jawaban Ya = indikasi gangguan</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
