@@ -527,8 +527,6 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                 {res.id ? (
                                     <>
                                         {/* Benar/Salah removed for performance - see detail view */}
-                                        )}
-
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
                                                 onClick={() => router.push(`/psychologist/exams/${examId}/answers/${res.id}`)}
