@@ -25,7 +25,29 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const normalizedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        // ✅ ROBUST NORMALIZATION: Handle unicode, invisible chars, etc.
+        // 1. Normalize unicode (NFKC converts fullwidth to ASCII)
+        // 2. Trim whitespace including non-breaking spaces
+        // 3. Convert to uppercase
+        // 4. Remove ALL non-alphanumeric characters (dash, space, etc)
+        const normalizedCode = code
+            .normalize('NFKC')  // Convert fullwidth chars: Ａ→A, ０→0
+            .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')  // Remove zero-width and nbsp
+            .trim()
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '');  // Keep only A-Z and 0-9
+        
+        // Debug log for troubleshooting
+        console.log(`[LOGIN] Input: "${code}" (len=${code.length}) → Normalized: "${normalizedCode}" (len=${normalizedCode.length})`);
+
+        // ✅ Validate minimum length (12 chars without dashes)
+        if (normalizedCode.length < 10) {
+            client.release();
+            return NextResponse.json(
+                { error: `Kode terlalu pendek. Pastikan mengetik kode dengan benar (${normalizedCode.length} karakter terdeteksi).` },
+                { status: 400 }
+            );
+        }
 
         // ✅ START TRANSACTION to prevent race condition
         await client.query('BEGIN');
@@ -57,8 +79,9 @@ export async function POST(req: NextRequest) {
         if (result.rows.length === 0) {
             await client.query('ROLLBACK');
             client.release();
+            console.log(`[LOGIN] Code not found: "${normalizedCode}"`);
             return NextResponse.json(
-                { error: 'Kode tidak valid atau sudah tidak aktif' },
+                { error: `Kode "${normalizedCode}" tidak valid atau sudah tidak aktif. Pastikan mengetik kode dengan benar.` },
                 { status: 401 }
             );
         }

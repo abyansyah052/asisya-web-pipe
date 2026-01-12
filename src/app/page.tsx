@@ -118,6 +118,11 @@ export default function CandidateLoginPage() {
                 <input
                   autoFocus
                   type="text"
+                  inputMode="text"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                   value={candidateCode}
                   onChange={handleCodeChange}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 h-14 px-4 pr-12 text-lg text-[#071F56] placeholder-slate-400 focus:border-[#0993A9] focus:ring-2 focus:ring-[#0993A9]/20 transition-all outline-none font-mono tracking-widest text-center uppercase"
@@ -127,9 +132,6 @@ export default function CandidateLoginPage() {
                 />
                 <KeyRound size={20} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0993A9]" />
               </div>
-              <p className="text-slate-400 text-xs text-center mt-1">
-                Format: 12 karakter alfanumerik
-              </p>
             </div>
 
             {error && (
