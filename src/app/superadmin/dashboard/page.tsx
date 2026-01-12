@@ -130,7 +130,7 @@ export default function SuperAdminDashboard() {
                     {/* Client Management Card */}
                     <div
                         onClick={() => router.push('/superadmin/clients')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center group-hover:bg-purple-800 transition-colors">
@@ -141,10 +141,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Tambah dan atur admin/client B2B</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Tambahkan client baru, atur organisasi, dan kelola akses admin untuk setiap client.
                         </p>
-                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Buka Manajemen Client
                         </button>
                     </div>
@@ -152,7 +152,7 @@ export default function SuperAdminDashboard() {
                     {/* Quota Management Card */}
                     <div
                         onClick={() => router.push('/superadmin/quotas')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center group-hover:bg-purple-800 transition-colors">
@@ -163,10 +163,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Atur batas penggunaan setiap client</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Tentukan kuota psikolog, kandidat, dan ujian untuk setiap client. Atur masa berlaku kuota.
                         </p>
-                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Kelola Kuota
                         </button>
                     </div>
@@ -174,7 +174,7 @@ export default function SuperAdminDashboard() {
                     {/* All Users Card */}
                     <div
                         onClick={() => router.push('/superadmin/users')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-purple-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
@@ -185,10 +185,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Lihat dan kelola semua user</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Lihat semua user dalam sistem, ubah role, dan kelola akses untuk semua pengguna platform.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Buka Manajemen User
                         </button>
                     </div>
@@ -196,7 +196,7 @@ export default function SuperAdminDashboard() {
                     {/* All Exams Card */}
                     <div
                         onClick={() => router.push('/superadmin/exams')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
@@ -207,10 +207,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Lihat semua ujian dalam platform</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Pantau semua ujian yang dibuat di platform, statistik penggunaan, dan status ujian.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Lihat Semua Ujian
                         </button>
                     </div>
@@ -218,7 +218,7 @@ export default function SuperAdminDashboard() {
                     {/* Grouping Card */}
                     <div
                         onClick={() => router.push('/superadmin/grouping')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
@@ -229,10 +229,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Assign peserta secara global</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Bagi peserta ke psikolog untuk setiap ujian. Auto-divide atau manual grouping.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Buka Pembagian
                         </button>
                     </div>
@@ -240,7 +240,7 @@ export default function SuperAdminDashboard() {
                     {/* Company Codes Card */}
                     <div
                         onClick={() => router.push('/superadmin/company-codes')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-blue-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:bg-blue-800 transition-colors">
@@ -251,10 +251,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Kelola kode unik perusahaan</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Buat dan kelola kode perusahaan untuk mengidentifikasi kandidat dari berbagai organisasi.
                         </p>
-                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Kelola Kode Perusahaan
                         </button>
                     </div>
@@ -262,7 +262,7 @@ export default function SuperAdminDashboard() {
                     {/* Platform Settings Card */}
                     <div
                         onClick={() => router.push('/superadmin/settings')}
-                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-gray-300 group"
+                        className="bg-white rounded-2xl shadow-md border border-gray-100 p-8 hover:shadow-xl transition-all cursor-pointer hover:border-gray-300 group flex flex-col h-full"
                     >
                         <div className="flex items-center gap-4 mb-4">
                             <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center group-hover:bg-gray-800 transition-colors">
@@ -273,10 +273,10 @@ export default function SuperAdminDashboard() {
                                 <p className="text-sm text-gray-500">Konfigurasi sistem global</p>
                             </div>
                         </div>
-                        <p className="text-gray-600 mb-4">
+                        <p className="text-gray-600 flex-grow">
                             Atur konfigurasi global platform, email settings, dan preferensi sistem lainnya.
                         </p>
-                        <button className="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+                        <button className="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-4">
                             Buka Pengaturan
                         </button>
                     </div>
