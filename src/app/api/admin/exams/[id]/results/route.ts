@@ -65,15 +65,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ea.srq_conclusion,
             (
                 SELECT COUNT(*) 
-                FROM answers a 
+                FROM (
+                    SELECT selected_option_id FROM exam_answers WHERE attempt_id = ea.id
+                    UNION ALL
+                    SELECT selected_option_id FROM answers WHERE attempt_id = ea.id
+                ) a
                 JOIN options o ON a.selected_option_id = o.id 
-                WHERE a.attempt_id = ea.id AND o.is_correct = TRUE
+                WHERE o.is_correct = TRUE
             ) as correct_count,
             (
                 SELECT COUNT(*) 
-                FROM answers a 
+                FROM (
+                    SELECT selected_option_id FROM exam_answers WHERE attempt_id = ea.id
+                    UNION ALL
+                    SELECT selected_option_id FROM answers WHERE attempt_id = ea.id
+                ) a
                 JOIN options o ON a.selected_option_id = o.id 
-                WHERE a.attempt_id = ea.id AND o.is_correct = FALSE
+                WHERE o.is_correct = FALSE
             ) as incorrect_count
         FROM exam_attempts ea
         JOIN users u ON ea.user_id = u.id

@@ -100,12 +100,24 @@ export async function GET(
         );
 
         // Get answers for this attempt
-        const answersResult = await pool.query(
+        // ✅ FIX: Check both old table (answers) and new table (exam_answers)
+        // Old components used 'answers', new components use 'exam_answers'
+        let answersResult = await pool.query(
             `SELECT question_id, selected_option_id 
-             FROM answers 
+             FROM exam_answers 
              WHERE attempt_id = $1`,
             [attemptId]
         );
+        
+        // Fallback to old 'answers' table if no data in exam_answers
+        if (answersResult.rows.length === 0) {
+            answersResult = await pool.query(
+                `SELECT question_id, selected_option_id 
+                 FROM answers 
+                 WHERE attempt_id = $1`,
+                [attemptId]
+            );
+        }
 
         // Build answers map
         const answersMap = new Map<number, number>();

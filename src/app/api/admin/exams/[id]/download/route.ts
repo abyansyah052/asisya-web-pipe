@@ -91,8 +91,18 @@ export async function GET(
             const answersMap: Record<number, Record<number, { answer: string; is_correct: boolean }>> = {};
 
             if (attemptIds.length > 0) {
+                // ✅ FIX: Check both exam_answers (new) and answers (old) tables
                 const answersRes = await client.query(
                     `SELECT 
+                        a.attempt_id,
+                        a.question_id,
+                        o.text as answer_text,
+                        o.is_correct
+                     FROM exam_answers a
+                     LEFT JOIN options o ON a.selected_option_id = o.id
+                     WHERE a.attempt_id = ANY($1)
+                     UNION ALL
+                     SELECT 
                         a.attempt_id,
                         a.question_id,
                         o.text as answer_text,

@@ -18,6 +18,7 @@ export async function POST() {
         const client = await pool.connect();
         try {
             // Find and auto-submit all expired attempts
+            // ✅ FIX: Check both exam_answers and answers tables
             const result = await client.query(`
                 UPDATE exam_attempts ea
                 SET 
@@ -25,9 +26,13 @@ export async function POST() {
                     end_time = ea.start_time + (e.duration_minutes * interval '1 minute'),
                     score = COALESCE((
                         SELECT COUNT(*) 
-                        FROM answers a 
+                        FROM (
+                            SELECT selected_option_id FROM exam_answers WHERE attempt_id = ea.id
+                            UNION ALL
+                            SELECT selected_option_id FROM answers WHERE attempt_id = ea.id
+                        ) a
                         JOIN options o ON a.selected_option_id = o.id 
-                        WHERE a.attempt_id = ea.id AND o.is_correct = TRUE
+                        WHERE o.is_correct = TRUE
                     ), 0)
                 FROM exams e
                 WHERE ea.exam_id = e.id
