@@ -164,6 +164,9 @@ export async function POST(req: NextRequest) {
         // ✅ COMMIT TRANSACTION
         await client.query('COMMIT');
 
+        // Check if code was already used (for redirect logic)
+        const codeWasUsed = codeData.current_uses > 0 && codeData.used_at;
+
         // Create JWT
         const token = await encrypt({
             id: userId,
@@ -177,7 +180,8 @@ export async function POST(req: NextRequest) {
             success: true,
             role: ROLES.CANDIDATE,
             profileCompleted: profileCompleted,
-            examId: codeData.exam_id
+            examId: codeData.exam_id,
+            codeUsed: codeWasUsed  // 🔴 NEW: Tell frontend if code was already used
         });
 
         // Use user_session cookie name for consistency

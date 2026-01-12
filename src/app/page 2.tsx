@@ -66,6 +66,16 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
+        // 🔴 NEW: Check if code was already used
+        if (data.codeUsed) {
+          // Code sudah dipakai - redirect ke view results, bukan exam
+          setError('Kode sudah digunakan. Anda dapat melihat hasil ujian Anda.');
+          setTimeout(() => {
+            router.push('/candidate/dashboard?view=results');
+          }, 1500);
+          return;
+        }
+
         // Check if profile completed
         if (!data.profileCompleted) {
           router.push('/candidate/profile-completion');
