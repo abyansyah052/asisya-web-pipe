@@ -132,35 +132,33 @@ hasil yang di tampilkan di excel dan didalam  detail nilai, tidak labeling kaya 
 
 8 Distinct Results (Original Text) = output hasil
 1. Normal
-
 text
 Normal. Tidak terdapat gejala psikologis seperti cemas dan depresi. Tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik, gejala PTSD/gejala stress setelah trauma
-2. Tidak Normal - PTSD Only
 
+2. Tidak Normal - PTSD Only
 text
 Tidak Normal. Terdapat gejala PTSD/gejala stress setelah trauma. Namun, tidak terdapat gejala psikologis seperti cemas dan depresi, penggunaan zat psikoaktif/narkoba, dan gejala episode psikotik.
-3. Tidak Normal - Cemas & Depresi
 
+3. Tidak Normal - Cemas & Depresi
 text
 Tidak Normal. Terdapat gejala psikologis seperti cemas dan depresi. Namun tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik dan gejala PTSD/gejala stress setelah trauma
-4. Tidak Normal - Episode Psikotik Only
 
+4. Tidak Normal - Episode Psikotik Only
 text
 Tidak Normal. Terdapat gejala episode psikotik. Namun tidak terdapat gejala psikologis seperti cemas dan depresi, penggunaan zat psikoaktif/narkoba, dan gejala PTSD/gejala stress setelah trauma
-5. Tidak Normal - PTSD + Psikotik
 
+5. Tidak Normal - PTSD + Psikotik
 text
 Tidak Normal. Terdapat gejala episode psikotik dan gejala PTSD/stress setelah trauma. Namun tidak terdapat gejala cemas/depresi dan penggunaan zat adiktif/narkoba
 6. Tidak Normal - Cemas, Depresi, PTSD
-
 text
 Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi dan PTSD. Namun tidak terdapat gejala episode psikotik dan penggunaan zat psikoaktif/narkoba
-7. Tidak Normal - Cemas, Depresi, Psikotik
 
+7. Tidak Normal - Cemas, Depresi, Psikotik
 text
 Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi dan gejala episode psikotik. Namun tidak terdapat gejala PTSD dan penggunaan zat psikoaktif/narkoba
-8. Tidak Normal - All Symptoms
 
+8. Tidak Normal - All Symptoms
 text
 Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi, gejala episode psikotik, dan PTSD/gejala stress setelah trauma. Namun, tidak terdapat penggunaan zat adiktif/narkoba
 

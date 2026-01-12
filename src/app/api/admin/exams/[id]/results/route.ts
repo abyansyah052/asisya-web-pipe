@@ -51,9 +51,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // ✅ Include 'in_progress' status if includeInProgress is true (for viewing candidates who started but haven't finished)
         const statusFilter = includeInProgress ? "AND ea.status IN ('completed', 'in_progress')" : "AND ea.status = 'completed'";
         
-        // ✅ PERFORMANCE OPTIMIZED: Removed correlated subqueries for correct_count/incorrect_count
-        // These are only meaningful for regular exams, not PSS/SRQ
-        // For regular exams, correct/incorrect counts are calculated client-side or in detail view
         const attemptsQuery = `
         SELECT DISTINCT ON (ea.user_id)
             ea.id, 
@@ -74,6 +71,46 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       `;
 
         const attemptsRes = await client.query(attemptsQuery, [examId]);
+
+        // ✅ PERFORMANCE: Get correct/incorrect counts in batch for regular exams (not PSS/SRQ)
+        // Only if exam type is general/MMPI and there are attempts
+        let correctCountMap = new Map<number, { correct: number; incorrect: number }>();
+        
+        if (exam.exam_type !== 'pss' && exam.exam_type !== 'srq29' && attemptsRes.rows.length > 0) {
+            const attemptIds = attemptsRes.rows.map((r: any) => r.id).filter(Boolean);
+            
+            if (attemptIds.length > 0) {
+                // Single batch query for all attempts
+                const countsQuery = `
+                    SELECT 
+                        ans.attempt_id,
+                        COUNT(CASE WHEN o.is_correct = true THEN 1 END) as correct_count,
+                        COUNT(CASE WHEN o.is_correct = false THEN 1 END) as incorrect_count
+                    FROM exam_answers ans
+                    JOIN options o ON ans.selected_option_id = o.id
+                    WHERE ans.attempt_id = ANY($1::int[])
+                    GROUP BY ans.attempt_id
+                `;
+                const countsRes = await client.query(countsQuery, [attemptIds]);
+                
+                countsRes.rows.forEach((row: any) => {
+                    correctCountMap.set(row.attempt_id, {
+                        correct: parseInt(row.correct_count) || 0,
+                        incorrect: parseInt(row.incorrect_count) || 0
+                    });
+                });
+            }
+        }
+
+        // Merge counts into results
+        const resultsWithCounts = attemptsRes.rows.map((row: any) => {
+            const counts = correctCountMap.get(row.id);
+            return {
+                ...row,
+                correct_count: counts?.correct ?? null,
+                incorrect_count: counts?.incorrect ?? null
+            };
+        });
 
         // ✅ Get all psychologist assignments from candidate_groups
         // ✅ Use COALESCE for admin_name to handle NULL full_name
@@ -100,7 +137,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
         return NextResponse.json({
             exam,
-            results: attemptsRes.rows,
+            results: resultsWithCounts,
             assignedCandidates,
             isAssignedOnly,
             adminList

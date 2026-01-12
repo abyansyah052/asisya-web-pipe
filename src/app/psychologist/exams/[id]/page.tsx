@@ -261,7 +261,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                             placeholder="Cari nama peserta..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400/60"
                         />
                         {searchQuery && (
                             <button
@@ -373,38 +373,23 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {/* PSS Result - show category with color */}
-                                            {res.pss_category ? (
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
-                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                                        res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
-                                                        res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
-                                                        'bg-red-100 text-red-700'
-                                                    }`}>{res.pss_category}</span>
-                                                </div>
-                                            /* SRQ-29 Result - show conclusion */
-                                            ) : res.srq_conclusion ? (
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
-                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium max-w-[150px] truncate ${
-                                                        res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
-                                                        'bg-orange-100 text-orange-700'
-                                                    }`} title={res.srq_conclusion}>{res.srq_conclusion}</span>
-                                                </div>
-                                            /* General exam - just show score */
-                                            ) : res.score !== null ? (
+                                            {/* Only show score in Nilai column - label is under name */}
+                                            {res.score !== null ? (
                                                 <span className="font-bold text-lg text-blue-600">{res.score}</span>
                                             ) : (
                                                 <span className="text-gray-400 text-sm font-normal">-</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {/* Benar/Salah calculated in detail view for performance */}
+                                            {/* Show benar/salah for regular exams, - for PSS/SRQ */}
                                             {res.pss_category || res.srq_conclusion ? (
                                                 <span className="text-gray-400">-</span>
+                                            ) : res.correct_count !== null && res.correct_count !== undefined ? (
+                                                <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+                                                    <CheckCircle size={14} /> {res.correct_count}
+                                                </span>
                                             ) : res.id ? (
-                                                <span className="text-gray-400 text-sm">Detail</span>
+                                                <span className="text-gray-400 text-sm">-</span>
                                             ) : (
                                                 <span className="text-gray-400">-</span>
                                             )}
@@ -412,8 +397,12 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                         <td className="px-6 py-4 text-center">
                                             {res.pss_category || res.srq_conclusion ? (
                                                 <span className="text-gray-400">-</span>
+                                            ) : res.incorrect_count !== null && res.incorrect_count !== undefined ? (
+                                                <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+                                                    <XCircle size={14} /> {res.incorrect_count}
+                                                </span>
                                             ) : res.id ? (
-                                                <span className="text-gray-400 text-sm">Detail</span>
+                                                <span className="text-gray-400 text-sm">-</span>
                                             ) : (
                                                 <span className="text-gray-400">-</span>
                                             )}

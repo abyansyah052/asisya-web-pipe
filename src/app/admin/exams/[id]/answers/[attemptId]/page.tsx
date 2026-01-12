@@ -148,43 +148,52 @@ export default function ExamAnswersDetailPage({
                 {srqResult && (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4 pt-4 border-t border-gray-100">
                         {srqResult.neurosis !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.neurosis >= 6 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.neurosis >= 6 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.neurosis}/20</div>
-                                <div className="text-[10px] text-gray-500">Neurosis</div>
-                                {srqResult.neurosis >= 6 && <span className="text-[8px] text-red-500 font-medium">≥6</span>}
+                            <div className={`p-2 rounded-lg text-center ${srqResult.neurosis >= 5 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                                <div className={`text-lg font-bold ${srqResult.neurosis >= 5 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.neurosis}/20</div>
+                                <div className="text-[10px] text-gray-500">Cemas/Depresi</div>
+                                {srqResult.neurosis >= 5 && <span className="text-[8px] text-red-500 font-medium">≥5</span>}
+                            </div>
+                        )}
+                        {srqResult.substanceUse !== undefined && (
+                            <div className={`p-2 rounded-lg text-center ${srqResult.substanceUse >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                                <div className={`text-lg font-bold ${srqResult.substanceUse >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.substanceUse}/1</div>
+                                <div className="text-[10px] text-gray-500">Zat/Narkoba</div>
+                                {srqResult.substanceUse >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
                             </div>
                         )}
                         {srqResult.psychosis !== undefined && (
                             <div className={`p-2 rounded-lg text-center ${srqResult.psychosis >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.psychosis >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.psychosis}/4</div>
-                                <div className="text-[10px] text-gray-500">Psikosis</div>
+                                <div className={`text-lg font-bold ${srqResult.psychosis >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.psychosis}/3</div>
+                                <div className="text-[10px] text-gray-500">Psikotik</div>
                                 {srqResult.psychosis >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
                             </div>
                         )}
                         {srqResult.ptsd !== undefined && (
                             <div className={`p-2 rounded-lg text-center ${srqResult.ptsd >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.ptsd >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.ptsd}/2</div>
+                                <div className={`text-lg font-bold ${srqResult.ptsd >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.ptsd}/5</div>
                                 <div className="text-[10px] text-gray-500">PTSD</div>
                                 {srqResult.ptsd >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
                             </div>
                         )}
-                        {srqResult.substanceUse !== undefined && (
-                            <div className={`p-2 rounded-lg text-center ${srqResult.substanceUse >= 1 ? 'bg-red-50' : 'bg-gray-50'}`}>
-                                <div className={`text-lg font-bold ${srqResult.substanceUse >= 1 ? 'text-red-600' : 'text-gray-700'}`}>{srqResult.substanceUse}/3</div>
-                                <div className="text-[10px] text-gray-500">Zat</div>
-                                {srqResult.substanceUse >= 1 && <span className="text-[8px] text-red-500 font-medium">≥1</span>}
-                            </div>
-                        )}
+                    </div>
+                )}
+                
+                {/* Full output text */}
+                {srqResult?.outputText && (
+                    <div className={`mt-4 p-4 rounded-lg ${isNormal ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
+                        <p className={`text-sm ${isNormal ? 'text-green-800' : 'text-orange-800'}`}>
+                            <strong>Kesimpulan:</strong> {srqResult.outputText}
+                        </p>
                     </div>
                 )}
                 
                 <div className="text-sm text-gray-600 mt-4 pt-4 border-t border-gray-100">
                     <strong>Interpretasi:</strong>
                     <ul className="mt-2 space-y-1 text-xs">
-                        <li>• Neurosis (Q1-20): ≥6 = indikasi gangguan</li>
-                        <li>• Psikosis (Q21-24): ≥1 = indikasi gangguan</li>
-                        <li>• PTSD (Q25-26): ≥1 = indikasi gangguan</li>
-                        <li>• Penggunaan Zat (Q27-29): ≥1 = indikasi gangguan</li>
+                        <li>• Cemas/Depresi (Q1-20): ≥5 Ya = indikasi gangguan</li>
+                        <li>• Penggunaan Zat (Q21): ≥1 Ya = indikasi gangguan</li>
+                        <li>• Psikotik (Q22-24): ≥1 Ya = indikasi gangguan</li>
+                        <li>• PTSD (Q25-29): ≥1 Ya = indikasi gangguan</li>
                     </ul>
                 </div>
             </div>
@@ -328,8 +337,19 @@ export default function ExamAnswersDetailPage({
                 </div>
 
                 {answers.length === 0 && (
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-center text-gray-500">
-                        Tidak ada jawaban yang ditemukan
+                    <div className="bg-white p-8 rounded-xl shadow-sm border border-orange-200 text-center">
+                        <AlertTriangle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">Data Jawaban Tidak Tersedia</h3>
+                        <p className="text-gray-500 text-sm mb-4">
+                            Detail jawaban untuk ujian ini tidak tersedia. Hal ini bisa terjadi karena:
+                        </p>
+                        <ul className="text-gray-500 text-sm text-left max-w-md mx-auto space-y-1">
+                            <li>• Ujian dikerjakan sebelum sistem pencatatan jawaban diperbarui</li>
+                            <li>• Data jawaban belum tersimpan dengan benar</li>
+                        </ul>
+                        <p className="text-gray-400 text-xs mt-4">
+                            Nilai akhir: <span className="font-bold text-blue-600">{attempt?.score ?? '-'}</span>
+                        </p>
                     </div>
                 )}
             </div>
