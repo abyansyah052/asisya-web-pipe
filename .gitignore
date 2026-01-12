@@ -42,7 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 # unused/completed documentation
-/Gapenting/
+/ga_penting/
 /screens/
 database-full-vps.sql
 database-schema-vps.sql
