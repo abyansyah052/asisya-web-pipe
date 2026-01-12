@@ -15,7 +15,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { title, description, duration_minutes, display_mode, questions } = body;
+        const { title, description, duration_minutes, display_mode, exam_type, questions } = body;
 
         if (!title || !duration_minutes || !questions || questions.length === 0) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -26,10 +26,10 @@ export async function POST(req: Request) {
         try {
             await client.query('BEGIN');
 
-            // Create exam with display_mode (default to 'per_page' if not provided)
+            // Create exam with display_mode and exam_type (default to 'per_page' and 'general' if not provided)
             const examResult = await client.query(
-                'INSERT INTO exams (title, description, duration_minutes, status, display_mode) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                [title, description || '', duration_minutes, 'published', display_mode || 'per_page']
+                'INSERT INTO exams (title, description, duration_minutes, status, display_mode, exam_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                [title, description || '', duration_minutes, 'published', display_mode || 'per_page', exam_type || 'general']
             );
             const examId = examResult.rows[0].id;
 
