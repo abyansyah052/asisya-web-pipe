@@ -3,11 +3,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Clock, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, X, Grid3X3 } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-// Dynamic import for PSS and SRQ components (to avoid loading unnecessarily)
-const PSSExam = dynamic(() => import('@/components/exams/PSSExam'), { ssr: false });
-const SRQ29Exam = dynamic(() => import('@/components/exams/SRQ29Exam'), { ssr: false });
 
 interface Option {
     id: number;
@@ -270,65 +265,8 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     if (loading) return <div className="h-screen flex items-center justify-center bg-gradient-to-br from-[#E6FBFB] to-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0993A9]"></div></div>;
     if (!examStarted) return <div className="h-screen flex items-center justify-center bg-gradient-to-br from-[#E6FBFB] to-slate-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0993A9]"></div></div>;
 
-    // Handler for PSS exam submission
-    const handlePSSSubmit = async (pssAnswers: any, score: number, category: string) => {
-        try {
-            const res = await fetch(`/api/candidate/exam/${examId}/submit-pss`, {
-                method: 'POST',
-                body: JSON.stringify({ attemptId, answers: pssAnswers, score, category }),
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (res.ok) {
-                setTimeout(() => router.push('/candidate/dashboard'), 2000);
-            } else {
-                const error = await res.json();
-                alert(error.error || 'Gagal mengumpulkan ujian');
-            }
-        } catch (e) {
-            alert('Terjadi kesalahan saat mengumpulkan ujian');
-        }
-    };
-
-    // Handler for SRQ-29 exam submission
-    const handleSRQ29Submit = async (srqAnswers: any, result: any) => {
-        try {
-            const res = await fetch(`/api/candidate/exam/${examId}/submit-srq`, {
-                method: 'POST',
-                body: JSON.stringify({ attemptId, answers: srqAnswers, result }),
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (res.ok) {
-                setTimeout(() => router.push('/candidate/dashboard'), 2000);
-            } else {
-                const error = await res.json();
-                alert(error.error || 'Gagal mengumpulkan ujian');
-            }
-        } catch (e) {
-            alert('Terjadi kesalahan saat mengumpulkan ujian');
-        }
-    };
-
-    // Render PSS Exam
-    if (examType === 'pss') {
-        return (
-            <PSSExam 
-                examId={examId} 
-                onSubmit={handlePSSSubmit} 
-                onBack={() => router.push('/candidate/dashboard')} 
-            />
-        );
-    }
-
-    // Render SRQ-29 Exam
-    if (examType === 'srq29') {
-        return (
-            <SRQ29Exam 
-                examId={examId} 
-                onSubmit={handleSRQ29Submit} 
-                onBack={() => router.push('/candidate/dashboard')} 
-            />
-        );
-    }
+    // PSS dan SRQ-29 sekarang menggunakan UI standard yang sama dengan MMPI
+    // Ini membuat timer dan auto-save berfungsi dengan benar
 
     const currentQ = questions[currentIdx];
 

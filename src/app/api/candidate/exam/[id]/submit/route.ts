@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { getSession } from '@/lib/auth';
 import { submitRateLimiter, checkRateLimit } from '@/lib/ratelimit';
 import { validateSubmitExam } from '@/lib/validation';
+import { calculatePSSScore } from '@/lib/scoring/pss';
+import { calculateSRQ29Score } from '@/lib/scoring/srq29';
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -50,7 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             // ✅ SECURITY FIX: Validate attempt ownership, status, AND time limit in ONE query
             const attemptValidation = await client.query(
-                `SELECT ea.id, ea.status, ea.start_time, ea.user_id, e.duration_minutes
+                `SELECT ea.id, ea.status, ea.start_time, ea.user_id, e.duration_minutes, e.exam_type
                  FROM exam_attempts ea
                  JOIN exams e ON ea.exam_id = e.id
                  WHERE ea.id = $1 AND ea.exam_id = $2`,
@@ -153,23 +155,135 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 await client.query(bulkInsertQuery, insertParams);
             }
 
-            // Calculate final score normalized to 100
-            const totalMarksRes = await client.query(
-                'SELECT SUM(marks) as total FROM questions WHERE exam_id = $1',
-                [examId]
-            );
-            const maxMarks = parseInt(totalMarksRes.rows[0]?.total || '0');
-
+            // Get exam type for specialized scoring
+            const examType = attempt.exam_type || 'general';
             let finalScore = 0;
-            if (maxMarks > 0) {
-                finalScore = Math.round((totalScore / maxMarks) * 100);
-            }
+            let pssResult = null;
+            let srqResult = null;
 
-            // Update Attempt
-            await client.query(
-                'UPDATE exam_attempts SET score = $1, status = $2, end_time = NOW() WHERE id = $3',
-                [finalScore, 'completed', attemptId]
-            );
+            if (examType === 'pss') {
+                // PSS Scoring: Get options with their text (to determine score 0-4)
+                const pssData = await client.query(
+                    `SELECT q.id as question_id, o.id as option_id, o.text as option_text
+                     FROM questions q
+                     JOIN options o ON o.question_id = q.id
+                     WHERE q.exam_id = $1
+                     ORDER BY q.id, o.id`,
+                    [examId]
+                );
+
+                // Build map: optionId -> score based on option order
+                const optionScoreMap = new Map<number, number>();
+                let lastQId = -1;
+                let optionIndex = 0;
+                
+                pssData.rows.forEach((row: { question_id: number; option_id: number }) => {
+                    if (row.question_id !== lastQId) {
+                        optionIndex = 0;
+                        lastQId = row.question_id;
+                    }
+                    optionScoreMap.set(row.option_id, optionIndex);
+                    optionIndex++;
+                });
+
+                // Build answers array for PSS scoring (10 values, 0-4 each)
+                const sortedQuestionIds = [...new Set(pssData.rows.map((r: { question_id: number }) => r.question_id))];
+                const pssAnswers: number[] = sortedQuestionIds.map((qId) => {
+                    const selectedOptionId = answers[qId as number];
+                    return optionScoreMap.get(selectedOptionId) ?? 0;
+                });
+
+                const pssScoreResult = calculatePSSScore(pssAnswers);
+                finalScore = pssScoreResult.totalScore;
+                pssResult = JSON.stringify({
+                    rawScore: pssScoreResult.rawScore,
+                    totalScore: pssScoreResult.totalScore,
+                    level: pssScoreResult.level,
+                    levelLabel: pssScoreResult.levelLabel,
+                    description: pssScoreResult.description
+                });
+
+                // Update with PSS result
+                await client.query(
+                    `UPDATE exam_attempts 
+                     SET score = $1, status = 'completed', end_time = NOW(), pss_result = $2, pss_category = $3
+                     WHERE id = $4`,
+                    [finalScore, pssResult, pssScoreResult.levelLabel, attemptId]
+                );
+
+            } else if (examType === 'srq29') {
+                // SRQ-29 Scoring: Get options with their text (Ya/Tidak)
+                const srqData = await client.query(
+                    `SELECT q.id as question_id, o.id as option_id, o.text as option_text
+                     FROM questions q
+                     JOIN options o ON o.question_id = q.id
+                     WHERE q.exam_id = $1
+                     ORDER BY q.id, o.id`,
+                    [examId]
+                );
+
+                // Build map: optionId -> isYes (1 or 0) - "Ya" is first option, = 1
+                const optionYesMap = new Map<number, boolean>();
+                
+                srqData.rows.forEach((row: { option_id: number; option_text: string }) => {
+                    optionYesMap.set(row.option_id, row.option_text.toLowerCase() === 'ya');
+                });
+
+                // Build answers array for SRQ scoring (29 values, 0 or 1 each)
+                const sortedQuestionIds = [...new Set(srqData.rows.map((r: { question_id: number }) => r.question_id))];
+                const srqAnswers: number[] = sortedQuestionIds.map((qId) => {
+                    const selectedOptionId = answers[qId as number];
+                    return optionYesMap.get(selectedOptionId) ? 1 : 0;
+                });
+
+                const srqScoreResult = calculateSRQ29Score(srqAnswers);
+                finalScore = srqScoreResult.totalScore;
+                
+                // Build detailed SRQ result with answer tracking
+                const srqAnswersObj: { [key: number]: string } = {};
+                sortedQuestionIds.forEach((qId, idx) => {
+                    srqAnswersObj[qId as number] = srqAnswers[idx] === 1 ? 'Y' : 'N';
+                });
+
+                srqResult = JSON.stringify({
+                    answers: srqAnswersObj,
+                    result: {
+                        anxiety: srqScoreResult.categories.find(c => c.category === 'cemasDepresi')?.positive ?? false,
+                        substance: srqScoreResult.categories.find(c => c.category === 'penggunaanZat')?.positive ?? false,
+                        psychotic: srqScoreResult.categories.find(c => c.category === 'psikotik')?.positive ?? false,
+                        ptsd: srqScoreResult.categories.find(c => c.category === 'ptsd')?.positive ?? false,
+                        conclusion: getSRQConclusion(srqScoreResult),
+                        resultText: srqScoreResult.outputText
+                    },
+                    type: 'srq29'
+                });
+
+                // Update with SRQ result
+                await client.query(
+                    `UPDATE exam_attempts 
+                     SET score = $1, status = 'completed', end_time = NOW(), srq_result = $2, srq_conclusion = $3
+                     WHERE id = $4`,
+                    [finalScore, srqResult, getSRQConclusion(srqScoreResult), attemptId]
+                );
+
+            } else {
+                // Standard scoring for general/MMPI exams
+                const totalMarksRes = await client.query(
+                    'SELECT SUM(marks) as total FROM questions WHERE exam_id = $1',
+                    [examId]
+                );
+                const maxMarks = parseInt(totalMarksRes.rows[0]?.total || '0');
+
+                if (maxMarks > 0) {
+                    finalScore = Math.round((totalScore / maxMarks) * 100);
+                }
+
+                // Update Attempt
+                await client.query(
+                    'UPDATE exam_attempts SET score = $1, status = $2, end_time = NOW() WHERE id = $3',
+                    [finalScore, 'completed', attemptId]
+                );
+            }
 
             await client.query('COMMIT');
 
@@ -185,4 +299,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     } catch (error) {
         return NextResponse.json({ error: 'Server Error' }, { status: 500 });
     }
+}
+
+// Helper function to get SRQ conclusion label
+function getSRQConclusion(result: { overallStatus: string; positiveCategories: string[] }): string {
+    if (result.overallStatus === 'normal') {
+        return 'Normal';
+    }
+    
+    const hasAnxiety = result.positiveCategories.includes('cemasDepresi');
+    const hasSubstance = result.positiveCategories.includes('penggunaanZat');
+    const hasPsychotic = result.positiveCategories.includes('psikotik');
+    const hasPtsd = result.positiveCategories.includes('ptsd');
+    
+    const symptoms = [];
+    if (hasAnxiety) symptoms.push('Cemas/Depresi');
+    if (hasSubstance) symptoms.push('Zat');
+    if (hasPsychotic) symptoms.push('Psikotik');
+    if (hasPtsd) symptoms.push('PTSD');
+    
+    if (symptoms.length === 1) {
+        return `Tidak Normal - ${symptoms[0]} Only`;
+    }
+    
+    return `Tidak Normal - ${symptoms.join(' + ')}`;
 }
