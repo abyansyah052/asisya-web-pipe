@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Filter, Download, Clock } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Filter, Download, Clock, Search } from 'lucide-react';
 
 export default function PsychologistExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -15,6 +15,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
     const [loading, setLoading] = useState(true);
     const [examId, setExamId] = useState<string>('');
     const [downloading, setDownloading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     
     // Tab state: 'assigned' or 'all'
     const [viewMode, setViewMode] = useState<'assigned' | 'all'>('assigned');
@@ -58,21 +59,30 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         fetchResults();
     }, [examId, router, viewMode, includeInProgress]);
 
-    // Filter results based on selection
-    const displayedResults = (() => {
-        // If "Semua" is selected, show all results
-        if (selectedFilter === 'all') {
-            return results;
+    // Filter results based on selection and search
+    const displayedResults = useMemo(() => {
+        let filtered = results;
+        
+        // Filter by psychologist
+        if (selectedFilter !== 'all') {
+            const psychologist = psychologistList.find(p => p.admin_id === selectedFilter);
+            if (psychologist && psychologist.candidate_ids.length > 0) {
+                filtered = filtered.filter(r => psychologist.candidate_ids.includes(r.user_id));
+            } else {
+                filtered = [];
+            }
         }
         
-        // If a specific psychologist is selected, filter by their candidates
-        const psychologist = psychologistList.find(p => p.admin_id === selectedFilter);
-        if (psychologist && psychologist.candidate_ids.length > 0) {
-            return results.filter(r => psychologist.candidate_ids.includes(r.user_id));
+        // Filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(r => 
+                r.student?.toLowerCase().includes(query)
+            );
         }
         
-        return []; // No candidates assigned to this psychologist
-    })();
+        return filtered;
+    }, [results, selectedFilter, psychologistList, searchQuery]);
 
     // Download Excel function
     const handleDownload = async (filterType: 'all' | 'assigned' | 'current') => {
@@ -231,42 +241,65 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                     </div>
                 </div>
 
-                {/* Psychologist Filter - Button + Dropdown */}
-                {psychologistList.filter(p => p.admin_name).length > 0 && (
-                    <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                        <div className="flex items-center gap-2 text-gray-600 text-sm">
-                            <Filter size={16} />
-                            <span className="font-medium">Filter Psikolog:</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
+                {/* Search + Psychologist Filter */}
+                <div className="mb-6 flex flex-col gap-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari nama peserta..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {searchQuery && (
                             <button
-                                onClick={() => setSelectedFilter('all')}
-                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                    selectedFilter === 'all'
-                                        ? 'bg-blue-800 text-white shadow-md'
-                                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                                }`}
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
-                                Semua ({results.length})
+                                ✕
                             </button>
-                            <select
-                                value={selectedFilter === 'all' ? '' : selectedFilter}
-                                onChange={(e) => setSelectedFilter(e.target.value ? parseInt(e.target.value) : 'all')}
-                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                            >
-                                <option value="">Pilih Psikolog...</option>
-                                {psychologistList.filter(p => p.admin_name).map((psych) => {
-                                    const psychResultCount = results.filter(r => psych.candidate_ids.includes(r.user_id)).length;
-                                    return (
-                                        <option key={psych.admin_id} value={psych.admin_id}>
-                                            {psych.admin_name} ({psychResultCount})
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
+                        )}
                     </div>
-                )}
+                    
+                    {/* Psychologist Filter - Button + Dropdown */}
+                    {psychologistList.filter(p => p.admin_name).length > 0 && (
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                            <div className="flex items-center gap-2 text-gray-600 text-sm">
+                                <Filter size={16} />
+                                <span className="font-medium">Filter Psikolog:</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={() => setSelectedFilter('all')}
+                                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                        selectedFilter === 'all'
+                                            ? 'bg-blue-800 text-white shadow-md'
+                                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    Semua ({results.length})
+                                </button>
+                                <select
+                                    value={selectedFilter === 'all' ? '' : selectedFilter}
+                                    onChange={(e) => setSelectedFilter(e.target.value ? parseInt(e.target.value) : 'all')}
+                                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                >
+                                    <option value="">Pilih Psikolog...</option>
+                                    {psychologistList.filter(p => p.admin_name).map((psych) => {
+                                        const psychResultCount = results.filter(r => psych.candidate_ids.includes(r.user_id)).length;
+                                        return (
+                                            <option key={psych.admin_id} value={psych.admin_id}>
+                                                {psych.admin_name} ({psychResultCount})
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Desktop Table View */}

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Copy, CheckCircle2, Trash2, Plus, ArrowLeft, RefreshCw, Download } from 'lucide-react';
+import { KeyRound, Copy, CheckCircle2, Trash2, Plus, ArrowLeft, RefreshCw, Download, Search } from 'lucide-react';
 
 interface CandidateCode {
     id: number;
@@ -36,6 +36,18 @@ export default function CodesPage() {
     const [selectedExam, setSelectedExam] = useState<number | null>(null);
     const [expiresInDays, setExpiresInDays] = useState(7);
     const [candidateName, setCandidateName] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Filtered codes based on search
+    const filteredCodes = useMemo(() => {
+        if (!searchQuery.trim()) return codes;
+        const query = searchQuery.toLowerCase().trim();
+        return codes.filter(c => 
+            c.code?.toLowerCase().includes(query) ||
+            c.candidate_name?.toLowerCase().includes(query) ||
+            c.exam_title?.toLowerCase().includes(query)
+        );
+    }, [codes, searchQuery]);
 
     useEffect(() => {
         fetchCodes();
@@ -233,19 +245,44 @@ export default function CodesPage() {
 
                 {/* Codes Table */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <h3 className="font-semibold text-gray-700">Daftar Kode Akses</h3>
+                        <div className="relative w-full sm:w-72">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari kode, nama..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {loading ? (
                         <div className="p-8 text-center text-gray-500">Memuat data...</div>
-                    ) : codes.length === 0 ? (
+                    ) : filteredCodes.length === 0 ? (
                         <div className="p-12 text-center">
                             <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                 <KeyRound size={32} className="text-gray-400" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900">Belum ada kode</h3>
-                            <p className="text-gray-500 mt-1">Klik tombol &quot;Generate Kode Baru&quot; untuk membuat kode akses.</p>
+                            <h3 className="text-lg font-medium text-gray-900">
+                                {searchQuery ? 'Tidak ada hasil pencarian' : 'Belum ada kode'}
+                            </h3>
+                            <p className="text-gray-500 mt-1">
+                                {searchQuery 
+                                    ? `Tidak ditemukan kode yang cocok dengan "${searchQuery}"`
+                                    : 'Klik tombol "Generate Kode Baru" untuk membuat kode akses.'
+                                }
+                            </p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -261,7 +298,7 @@ export default function CodesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {codes.map((code) => (
+                                    {filteredCodes.map((code) => (
                                         <tr key={code.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
