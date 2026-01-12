@@ -30,9 +30,9 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         if (!examId) return;
         const fetchResults = async () => {
             try {
-                // Fetch with showAll and includeInProgress params
+                // ALWAYS fetch all results - filtering is done client-side
                 const queryParams = new URLSearchParams();
-                if (viewMode === 'all') queryParams.set('showAll', 'true');
+                queryParams.set('showAll', 'true'); // Always get all
                 if (includeInProgress) queryParams.set('includeInProgress', 'true');
                 const queryString = queryParams.toString();
                 const url = `/api/admin/exams/${examId}/results${queryString ? `?${queryString}` : ''}`;
@@ -49,6 +49,11 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                     setAssignedCandidates(data.assignedCandidates || []);
                     setIsAssignedOnly(data.isAssignedOnly || false);
                     setPsychologistList(data.adminList || []);
+                    
+                    // If no assigned candidates, default to 'all' view
+                    if (!data.assignedCandidates || data.assignedCandidates.length === 0) {
+                        setViewMode('all');
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -57,13 +62,18 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
             }
         };
         fetchResults();
-    }, [examId, router, viewMode, includeInProgress]);
+    }, [examId, router, includeInProgress]); // Remove viewMode dependency - always fetch all
 
-    // Filter results based on selection and search
+    // Filter results based on viewMode, psychologist selection, and search
     const displayedResults = useMemo(() => {
         let filtered = results;
         
-        // Filter by psychologist
+        // First filter by viewMode (assigned vs all)
+        if (viewMode === 'assigned' && assignedCandidates.length > 0) {
+            filtered = filtered.filter(r => assignedCandidates.includes(r.user_id));
+        }
+        
+        // Then filter by psychologist if selected
         if (selectedFilter !== 'all') {
             const psychologist = psychologistList.find(p => p.admin_id === selectedFilter);
             if (psychologist && psychologist.candidate_ids.length > 0) {
@@ -73,7 +83,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
             }
         }
         
-        // Filter by search query
+        // Finally filter by search query
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(r => 
@@ -82,7 +92,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         }
         
         return filtered;
-    }, [results, selectedFilter, psychologistList, searchQuery]);
+    }, [results, viewMode, assignedCandidates, selectedFilter, psychologistList, searchQuery]);
 
     // Download Excel function
     const handleDownload = async (filterType: 'all' | 'assigned' | 'current') => {
@@ -151,9 +161,9 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                             <h1 className="text-xl sm:text-2xl font-bold text-gray-800">{exam?.title}</h1>
                             <p className="text-gray-500 mt-1 text-sm sm:text-base">Hasil Peserta Ujian</p>
                             
-                            {/* Tab untuk switch Kandidat Saya vs Semua Kandidat */}
-                            {assignedCandidates.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
+                            {/* Tab untuk switch Kandidat Saya vs Semua Kandidat - SELALU tampilkan */}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {assignedCandidates.length > 0 && (
                                     <button
                                         onClick={() => setViewMode('assigned')}
                                         className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
@@ -164,18 +174,18 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                     >
                                         Kandidat Saya ({results.filter(r => assignedCandidates.includes(r.user_id)).length}/{assignedCandidates.length})
                                     </button>
-                                    <button
-                                        onClick={() => setViewMode('all')}
-                                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                            viewMode === 'all'
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                    >
-                                        Semua Kandidat
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                                <button
+                                    onClick={() => setViewMode('all')}
+                                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                        viewMode === 'all' || assignedCandidates.length === 0
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    Semua Kandidat ({results.length})
+                                </button>
+                            </div>
                             
                             {/* Toggle untuk termasuk yang belum selesai */}
                             <div className="mt-3 flex items-center gap-2">
@@ -390,25 +400,20 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {/* Hide correct/incorrect for PSS/SRQ - not relevant */}
+                                            {/* Benar/Salah calculated in detail view for performance */}
                                             {res.pss_category || res.srq_conclusion ? (
                                                 <span className="text-gray-400">-</span>
                                             ) : res.id ? (
-                                                <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">
-                                                    <CheckCircle size={14} /> {res.correct_count}
-                                                </span>
+                                                <span className="text-gray-400 text-sm">Detail</span>
                                             ) : (
                                                 <span className="text-gray-400">-</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {/* Hide correct/incorrect for PSS/SRQ - not relevant */}
                                             {res.pss_category || res.srq_conclusion ? (
                                                 <span className="text-gray-400">-</span>
                                             ) : res.id ? (
-                                                <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-bold">
-                                                    <XCircle size={14} /> {res.incorrect_count}
-                                                </span>
+                                                <span className="text-gray-400 text-sm">Detail</span>
                                             ) : (
                                                 <span className="text-gray-400">-</span>
                                             )}
@@ -521,18 +526,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                 
                                 {res.id ? (
                                     <>
-                                        {/* Only show Benar/Salah for non-PSS/SRQ exams */}
-                                        {!res.pss_category && !res.srq_conclusion && (
-                                            <div className="flex gap-2 mb-3">
-                                                <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
-                                                    <div className="text-xs text-green-600 font-medium">Benar</div>
-                                                    <div className="text-lg font-bold text-green-700">{res.correct_count}</div>
-                                                </div>
-                                                <div className="flex-1 bg-red-50 rounded-lg p-2 text-center">
-                                                    <div className="text-xs text-red-600 font-medium">Salah</div>
-                                                    <div className="text-lg font-bold text-red-700">{res.incorrect_count}</div>
-                                                </div>
-                                            </div>
+                                        {/* Benar/Salah removed for performance - see detail view */}
                                         )}
 
                                         <div className="grid grid-cols-2 gap-2">

@@ -51,6 +51,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // ✅ Include 'in_progress' status if includeInProgress is true (for viewing candidates who started but haven't finished)
         const statusFilter = includeInProgress ? "AND ea.status IN ('completed', 'in_progress')" : "AND ea.status = 'completed'";
         
+        // ✅ PERFORMANCE OPTIMIZED: Removed correlated subqueries for correct_count/incorrect_count
+        // These are only meaningful for regular exams, not PSS/SRQ
+        // For regular exams, correct/incorrect counts are calculated client-side or in detail view
         const attemptsQuery = `
         SELECT DISTINCT ON (ea.user_id)
             ea.id, 
@@ -62,27 +65,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ea.start_time,
             up.jenis_kelamin as gender,
             ea.pss_category,
-            ea.srq_conclusion,
-            (
-                SELECT COUNT(*) 
-                FROM (
-                    SELECT selected_option_id FROM exam_answers WHERE attempt_id = ea.id
-                    UNION ALL
-                    SELECT selected_option_id FROM answers WHERE attempt_id = ea.id
-                ) a
-                JOIN options o ON a.selected_option_id = o.id 
-                WHERE o.is_correct = TRUE
-            ) as correct_count,
-            (
-                SELECT COUNT(*) 
-                FROM (
-                    SELECT selected_option_id FROM exam_answers WHERE attempt_id = ea.id
-                    UNION ALL
-                    SELECT selected_option_id FROM answers WHERE attempt_id = ea.id
-                ) a
-                JOIN options o ON a.selected_option_id = o.id 
-                WHERE o.is_correct = FALSE
-            ) as incorrect_count
+            ea.srq_conclusion
         FROM exam_attempts ea
         JOIN users u ON ea.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download, Search } from 'lucide-react';
 
 export default function ExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -15,6 +15,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
     const [loading, setLoading] = useState(true);
     const [examId, setExamId] = useState<string>('');
     const [downloading, setDownloading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
@@ -24,7 +25,8 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
         if (!examId) return;
         const fetchResults = async () => {
             try {
-                const res = await fetch(`/api/admin/exams/${examId}/results`);
+                // Always fetch all results
+                const res = await fetch(`/api/admin/exams/${examId}/results?showAll=true`);
                 if (res.ok) {
                     const data = await res.json();
                     setExam(data.exam);
@@ -42,13 +44,28 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
         fetchResults();
     }, [examId]);
 
-    // Filter results based on selected admin
-    const displayedResults = selectedAdminId === null
-        ? (isAssignedOnly ? results.filter(r => assignedCandidates.includes(r.user_id)) : results)
-        : results.filter(r => {
+    // Filter results based on selected admin and search
+    const displayedResults = useMemo(() => {
+        let filtered = results;
+        
+        // Filter by admin
+        if (selectedAdminId !== null) {
             const admin = adminList.find(a => a.admin_id === selectedAdminId);
-            return admin && admin.candidate_ids.includes(r.user_id);
-        });
+            if (admin && admin.candidate_ids.length > 0) {
+                filtered = filtered.filter(r => admin.candidate_ids.includes(r.user_id));
+            } else {
+                filtered = [];
+            }
+        }
+        
+        // Filter by search
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(r => r.student?.toLowerCase().includes(query));
+        }
+        
+        return filtered;
+    }, [results, selectedAdminId, adminList, searchQuery]);
 
     // Download Excel function
     const handleDownload = async (filterType: 'all' | 'assigned' | 'selected') => {
@@ -175,35 +192,58 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                     </div>
                 </div>
 
-                {/* Admin Filter - Button + Dropdown */}
-                {adminList.length > 0 && (
-                    <div className="mb-6 flex items-center gap-3">
-                        <button
-                            onClick={() => setSelectedAdminId(null)}
-                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${selectedAdminId === null
-                                    ? 'bg-blue-800 text-white shadow-md'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                                }`}
-                        >
-                            Semua ({results.length})
-                        </button>
-                        <select
-                            value={selectedAdminId || ''}
-                            onChange={(e) => setSelectedAdminId(e.target.value ? parseInt(e.target.value) : null)}
-                            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                        >
-                            <option value="">Pilih Admin...</option>
-                            {adminList.map((admin) => {
-                                const adminResultCount = results.filter(r => admin.candidate_ids.includes(r.user_id)).length;
-                                return (
-                                    <option key={admin.admin_id} value={admin.admin_id}>
-                                        {admin.admin_name} ({adminResultCount})
-                                    </option>
-                                );
-                            })}
-                        </select>
+                {/* Search + Admin Filter */}
+                <div className="mb-6 flex flex-col gap-4">
+                    {/* Search Input */}
+                    <div className="relative">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari nama peserta..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                ✕
+                            </button>
+                        )}
                     </div>
-                )}
+                    
+                    {/* Admin Filter - Button + Dropdown */}
+                    {adminList.length > 0 && (
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setSelectedAdminId(null)}
+                                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${selectedAdminId === null
+                                        ? 'bg-blue-800 text-white shadow-md'
+                                        : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Semua ({results.length})
+                            </button>
+                            <select
+                                value={selectedAdminId || ''}
+                                onChange={(e) => setSelectedAdminId(e.target.value ? parseInt(e.target.value) : null)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            >
+                                <option value="">Pilih Admin...</option>
+                                {adminList.map((admin) => {
+                                    const adminResultCount = results.filter(r => admin.candidate_ids.includes(r.user_id)).length;
+                                    return (
+                                        <option key={admin.admin_id} value={admin.admin_id}>
+                                            {admin.admin_name} ({adminResultCount})
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    )}
+                </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Desktop Table View */}
@@ -233,27 +273,63 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     </tr>
                                 ) : displayedResults.map((res: any) => (
                                     <tr key={res.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                                                {res.student ? res.student.charAt(0).toUpperCase() : '?'}
+                                        <td className="px-6 py-4 font-medium text-gray-800">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
+                                                    {res.student ? res.student.charAt(0).toUpperCase() : '?'}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span>{res.student || 'Kandidat Tidak Dikenal'}</span>
+                                                    {/* PSS Label */}
+                                                    {res.pss_category && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 ${
+                                                            res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                            res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-red-100 text-red-700'
+                                                        }`}>{res.pss_category}</span>
+                                                    )}
+                                                    {/* SRQ Label */}
+                                                    {res.srq_conclusion && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 max-w-[120px] truncate ${
+                                                            res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                            'bg-orange-100 text-orange-700'
+                                                        }`} title={res.srq_conclusion}>{res.srq_conclusion.split(' - ')[0]}</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {res.student || 'Kandidat Tidak Dikenal'}
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 text-sm">
-                                            {new Date(res.end_time).toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-4 text-center font-bold text-lg text-blue-600">
-                                            {res.score}
+                                            {res.end_time ? new Date(res.end_time).toLocaleString() : '-'}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">
-                                                <CheckCircle size={14} /> {res.correct_count}
-                                            </span>
+                                            {/* PSS Result - show category with color */}
+                                            {res.pss_category ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                                        res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                        res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
+                                                    }`}>{res.pss_category}</span>
+                                                </div>
+                                            ) : res.srq_conclusion ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium max-w-[150px] truncate ${
+                                                        res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                        'bg-orange-100 text-orange-700'
+                                                    }`} title={res.srq_conclusion}>{res.srq_conclusion}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-bold">
-                                                <XCircle size={14} /> {res.incorrect_count}
-                                            </span>
+                                            {/* Benar/Salah calculated in detail view for performance */}
+                                            <span className="text-gray-400 text-sm">Lihat Detail</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="text-gray-400 text-sm">Lihat Detail</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col gap-2 items-center">
@@ -298,13 +374,27 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-gray-900 truncate">{res.student || 'Unknown'}</div>
+                                        {/* PSS/SRQ Label under name in mobile */}
+                                        {res.pss_category && (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 ${
+                                                res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-red-100 text-red-700'
+                                            }`}>{res.pss_category}</div>
+                                        )}
+                                        {res.srq_conclusion && (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 max-w-[120px] truncate ${
+                                                res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                'bg-orange-100 text-orange-700'
+                                            }`} title={res.srq_conclusion}>{res.srq_conclusion.split(' - ')[0]}</div>
+                                        )}
                                         <div className="text-xs text-gray-500 mt-0.5">
-                                            {new Date(res.end_time).toLocaleDateString('id-ID', {
+                                            {res.end_time ? new Date(res.end_time).toLocaleDateString('id-ID', {
                                                 day: 'numeric',
                                                 month: 'short',
                                                 hour: '2-digit',
                                                 minute: '2-digit'
-                                            })}
+                                            }) : '-'}
                                         </div>
                                     </div>
                                     <div className="text-right shrink-0">
@@ -313,16 +403,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     </div>
                                 </div>
 
-                                <div className="flex gap-2 mb-3">
-                                    <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
-                                        <div className="text-xs text-green-600 font-medium">Benar</div>
-                                        <div className="text-lg font-bold text-green-700">{res.correct_count}</div>
-                                    </div>
-                                    <div className="flex-1 bg-red-50 rounded-lg p-2 text-center">
-                                        <div className="text-xs text-red-600 font-medium">Salah</div>
-                                        <div className="text-lg font-bold text-red-700">{res.incorrect_count}</div>
-                                    </div>
-                                </div>
+                                {/* Correct/Incorrect counts removed for performance - available in detail view */}
 
                                 <div className="grid grid-cols-2 gap-2">
                                     <button

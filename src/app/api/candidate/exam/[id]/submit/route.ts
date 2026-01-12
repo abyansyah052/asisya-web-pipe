@@ -302,15 +302,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 }
 
 // Helper function to get SRQ conclusion label
-function getSRQConclusion(result: { overallStatus: string; positiveCategories: string[] }): string {
+function getSRQConclusion(result: { overallStatus: string; positiveCategories: string[]; categories: Array<{category: string; positive: boolean}> }): string {
     if (result.overallStatus === 'normal') {
         return 'Normal';
     }
     
-    const hasAnxiety = result.positiveCategories.includes('cemasDepresi');
-    const hasSubstance = result.positiveCategories.includes('penggunaanZat');
-    const hasPsychotic = result.positiveCategories.includes('psikotik');
-    const hasPtsd = result.positiveCategories.includes('ptsd');
+    // Use categories array which has category key names
+    const hasAnxiety = result.categories.find(c => c.category === 'cemasDepresi')?.positive ?? false;
+    const hasSubstance = result.categories.find(c => c.category === 'penggunaanZat')?.positive ?? false;
+    const hasPsychotic = result.categories.find(c => c.category === 'psikotik')?.positive ?? false;
+    const hasPtsd = result.categories.find(c => c.category === 'ptsd')?.positive ?? false;
     
     const symptoms = [];
     if (hasAnxiety) symptoms.push('Cemas/Depresi');
@@ -318,8 +319,12 @@ function getSRQConclusion(result: { overallStatus: string; positiveCategories: s
     if (hasPsychotic) symptoms.push('Psikotik');
     if (hasPtsd) symptoms.push('PTSD');
     
+    if (symptoms.length === 0) {
+        return 'Normal'; // Edge case - should not happen
+    }
+    
     if (symptoms.length === 1) {
-        return `Tidak Normal - ${symptoms[0]} Only`;
+        return `Tidak Normal - ${symptoms[0]}`;
     }
     
     return `Tidak Normal - ${symptoms.join(' + ')}`;
