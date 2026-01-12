@@ -11,6 +11,7 @@ interface Exam {
     status: string;
     description: string;
     question_count: number;
+    exam_type?: 'general' | 'mmpi' | 'pss' | 'srq29';
 }
 
 export default function AdminDashboard() {
@@ -57,6 +58,11 @@ export default function AdminDashboard() {
     };
 
     const handleDeleteClick = (examId: number) => {
+        const exam = exams.find(e => e.id === examId);
+        if (exam?.exam_type === 'pss' || exam?.exam_type === 'srq29') {
+            alert(`Ujian ${exam.exam_type === 'pss' ? 'PSS' : 'SRQ-29'} tidak dapat dihapus karena merupakan soal standar sistem.`);
+            return;
+        }
         setDeleteModal({show: true, examId});
         setCodeSent(false);
         setVerificationCode('');
@@ -270,6 +276,7 @@ export default function AdminDashboard() {
                             <thead>
                                 <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
                                     <th className="px-6 py-3 font-medium">Judul Ujian</th>
+                                    <th className="px-6 py-3 font-medium">Tipe Ujian</th>
                                     <th className="px-6 py-3 font-medium">Status</th>
                                     <th className="px-6 py-3 font-medium">Jumlah Soal</th>
                                     <th className="px-6 py-3 font-medium text-right">Aksi</th>
@@ -279,6 +286,19 @@ export default function AdminDashboard() {
                                 {exams.map((exam) => (
                                     <tr key={exam.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-gray-800">{exam.title}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                exam.exam_type === 'pss' ? 'bg-blue-100 text-blue-800' :
+                                                exam.exam_type === 'srq29' ? 'bg-orange-100 text-orange-800' :
+                                                exam.exam_type === 'mmpi' ? 'bg-purple-100 text-purple-800' :
+                                                'bg-gray-100 text-gray-800'
+                                            }`}>
+                                                {exam.exam_type === 'pss' ? 'PSS' : 
+                                                 exam.exam_type === 'srq29' ? 'SRQ-29' : 
+                                                 exam.exam_type === 'mmpi' ? 'MMPI' : 
+                                                 'Umum'}
+                                            </span>
+                                        </td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${exam.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                                                 }`}>
@@ -302,7 +322,13 @@ export default function AdminDashboard() {
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteClick(exam.id)}
-                                                    className="text-red-600 hover:text-red-800 font-medium text-sm inline-flex items-center gap-1"
+                                                    disabled={exam.exam_type === 'pss' || exam.exam_type === 'srq29'}
+                                                    className={`font-medium text-sm inline-flex items-center gap-1 ${
+                                                        exam.exam_type === 'pss' || exam.exam_type === 'srq29'
+                                                            ? 'text-gray-400 cursor-not-allowed'
+                                                            : 'text-red-600 hover:text-red-800'
+                                                    }`}
+                                                    title={exam.exam_type === 'pss' || exam.exam_type === 'srq29' ? 'Ujian standar tidak dapat dihapus' : ''}
                                                 >
                                                     <Trash2 size={16} /> Hapus
                                                 </button>
