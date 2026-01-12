@@ -20,20 +20,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const client = await pool.connect();
 
         try {
-            // ✅ SECURITY FIX: Validate user has access to this exam via candidate_codes
+            // ✅ SECURITY FIX: Validate user has access to this exam
+            // Access granted if:
+            // 1. User has candidate_code with this specific exam_id, OR
+            // 2. User has candidate_code with NULL exam_id (access all published exams), OR
+            // 3. User is assigned via candidate_groups, OR
+            // 4. User already has an attempt (backward compatibility)
             const accessCheck = await client.query(
-                `SELECT cc.id FROM candidate_codes cc
-                 WHERE cc.candidate_id = $1 AND cc.exam_id = $2 AND cc.is_active = true`,
+                `SELECT 1 FROM candidate_codes cc
+                 WHERE cc.candidate_id = $1 
+                   AND (cc.exam_id = $2 OR cc.exam_id IS NULL)
+                   AND cc.is_active = true
+                 UNION
+                 SELECT 1 FROM candidate_groups cg
+                 WHERE cg.candidate_id = $1 AND cg.exam_id = $2
+                 UNION
+                 SELECT 1 FROM exam_attempts ea
+                 WHERE ea.user_id = $1 AND ea.exam_id = $2
+                 LIMIT 1`,
                 [user.id, examId]
             );
             
-            // Allow access if user has valid code OR if they already have an attempt (backward compatibility)
-            const existingAttempt = await client.query(
-                'SELECT id FROM exam_attempts WHERE user_id = $1 AND exam_id = $2',
-                [user.id, examId]
-            );
-            
-            if (accessCheck.rows.length === 0 && existingAttempt.rows.length === 0) {
+            if (accessCheck.rows.length === 0) {
                 return NextResponse.json({ error: 'Anda tidak memiliki akses ke ujian ini' }, { status: 403 });
             }
 
