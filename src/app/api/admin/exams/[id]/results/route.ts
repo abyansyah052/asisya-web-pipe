@@ -60,7 +60,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ea.end_time,
             ea.status as attempt_status,
             ea.start_time,
-            up.gender,
+            up.jenis_kelamin as gender,
             ea.pss_category,
             ea.srq_conclusion,
             (
