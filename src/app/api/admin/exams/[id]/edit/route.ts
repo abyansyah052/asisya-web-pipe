@@ -86,18 +86,47 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 [title, description || '', duration_minutes, status, display_mode || 'per_page', thumbnail || null, require_all_answers || false, examId]
             );
 
-            // Delete existing questions and options (CASCADE will handle options)
-            await client.query('DELETE FROM questions WHERE exam_id = $1', [examId]);
+            // ✅ FIX: Preserve question IDs to avoid orphaning exam_answers
+            // Get existing question IDs
+            const existingQuestionsResult = await client.query(
+                'SELECT id FROM questions WHERE exam_id = $1',
+                [examId]
+            );
+            const existingQuestionIds = new Set(existingQuestionsResult.rows.map((q: { id: number }) => q.id));
+            const newQuestionIds = new Set(questions.filter((q: { id?: number }) => q.id).map((q: { id: number }) => q.id));
 
-            // Insert new questions and options
-            for (const q of questions) {
-                const questionResult = await client.query(
-                    'INSERT INTO questions (exam_id, text, marks) VALUES ($1, $2, $3) RETURNING id',
-                    [examId, q.text, q.marks]
+            // Delete questions that are no longer in the list (and their options via CASCADE)
+            const questionsToDelete = [...existingQuestionIds].filter(id => !newQuestionIds.has(id));
+            if (questionsToDelete.length > 0) {
+                await client.query(
+                    'DELETE FROM questions WHERE id = ANY($1::int[])',
+                    [questionsToDelete]
                 );
-                const questionId = questionResult.rows[0].id;
+            }
 
-                // Insert options
+            // Update or insert questions
+            for (const q of questions) {
+                let questionId = q.id;
+
+                if (q.id && existingQuestionIds.has(q.id)) {
+                    // Update existing question
+                    await client.query(
+                        'UPDATE questions SET text = $1, marks = $2 WHERE id = $3',
+                        [q.text, q.marks, q.id]
+                    );
+
+                    // Delete existing options for this question
+                    await client.query('DELETE FROM options WHERE question_id = $1', [q.id]);
+                } else {
+                    // Insert new question
+                    const questionResult = await client.query(
+                        'INSERT INTO questions (exam_id, text, marks) VALUES ($1, $2, $3) RETURNING id',
+                        [examId, q.text, q.marks]
+                    );
+                    questionId = questionResult.rows[0].id;
+                }
+
+                // Insert options (always fresh to ensure is_correct is correct)
                 for (const opt of q.options) {
                     await client.query(
                         'INSERT INTO options (question_id, text, is_correct) VALUES ($1, $2, $3)',
