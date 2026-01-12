@@ -43,7 +43,7 @@ export async function GET() {
                     ORDER BY ea.end_time DESC
                 ),
                 available_exams AS (
-                    SELECT e.id, e.title, e.description, e.duration_minutes, e.status
+                    SELECT e.id, e.title, e.description, e.duration_minutes, e.status, e.exam_type, e.instructions
                     FROM exams e
                     WHERE e.status = 'published'
                     AND NOT EXISTS (

@@ -181,9 +181,16 @@ export default function PsychologistExamAnswersDetailPage({
                 {/* SRQ-29 Detailed Result Card */}
                 {examType === 'srq29' && srqResult && (
                     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
-                        <div className="flex items-center gap-2 mb-4">
-                            <AlertTriangle className="text-orange-500" size={20} />
-                            <h2 className="text-lg font-bold text-gray-800">Hasil Analisis SRQ-29</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="text-orange-500" size={20} />
+                                <h2 className="text-lg font-bold text-gray-800">Hasil Analisis SRQ-29 (Self-Reporting Questionnaire)</h2>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                                srqConclusion === 'Normal' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                            }`}>
+                                {srqConclusion === 'Normal' ? '✓ Normal' : '⚠ Perlu Perhatian'}
+                            </div>
                         </div>
                         
                         {/* Interpretasi */}
@@ -193,32 +200,52 @@ export default function PsychologistExamAnswersDetailPage({
                                 <div className={`font-bold ${srqResult.result?.anxiety ? 'text-red-700' : 'text-green-700'}`}>
                                     {srqResult.result?.anxiety ? 'Terdeteksi (≥5 Ya)' : 'Normal (<5 Ya)'}
                                 </div>
+                                <div className="text-[10px] text-gray-400 mt-1">
+                                    Jawaban Ya: {srqResult.result?.anxietyCount ?? 0}/20
+                                </div>
                             </div>
                             <div className={`p-3 rounded-lg border ${srqResult.result?.substance ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                                 <div className="text-xs text-gray-500 mb-1">Zat Psikoaktif (No. 21)</div>
                                 <div className={`font-bold ${srqResult.result?.substance ? 'text-red-700' : 'text-green-700'}`}>
                                     {srqResult.result?.substance ? 'Terdeteksi' : 'Normal'}
                                 </div>
+                                <div className="text-[10px] text-gray-400 mt-1">
+                                    Jawaban Ya: {srqResult.result?.substance ? 1 : 0}/1
+                                </div>
                             </div>
                             <div className={`p-3 rounded-lg border ${srqResult.result?.psychotic ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                                 <div className="text-xs text-gray-500 mb-1">Episode Psikotik (No. 22-24)</div>
                                 <div className={`font-bold ${srqResult.result?.psychotic ? 'text-red-700' : 'text-green-700'}`}>
-                                    {srqResult.result?.psychotic ? 'Terdeteksi' : 'Normal'}
+                                    {srqResult.result?.psychotic ? 'Terdeteksi (≥1 Ya)' : 'Normal'}
+                                </div>
+                                <div className="text-[10px] text-gray-400 mt-1">
+                                    Jawaban Ya: {srqResult.result?.psychoticCount ?? 0}/3
                                 </div>
                             </div>
                             <div className={`p-3 rounded-lg border ${srqResult.result?.ptsd ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                                 <div className="text-xs text-gray-500 mb-1">PTSD (No. 25-29)</div>
                                 <div className={`font-bold ${srqResult.result?.ptsd ? 'text-red-700' : 'text-green-700'}`}>
-                                    {srqResult.result?.ptsd ? 'Terdeteksi' : 'Normal'}
+                                    {srqResult.result?.ptsd ? 'Terdeteksi (≥1 Ya)' : 'Normal'}
+                                </div>
+                                <div className="text-[10px] text-gray-400 mt-1">
+                                    Jawaban Ya: {srqResult.result?.ptsdCount ?? 0}/5
                                 </div>
                             </div>
                         </div>
                         
                         {/* Kesimpulan lengkap */}
                         <div className={`p-4 rounded-lg ${srqConclusion === 'Normal' ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
-                            <div className="text-xs text-gray-500 mb-1">Kesimpulan</div>
+                            <div className="text-xs text-gray-500 mb-1">Kesimpulan Lengkap</div>
                             <p className={`text-sm ${srqConclusion === 'Normal' ? 'text-green-800' : 'text-orange-800'}`}>
                                 {SRQ_RESULT_TEXTS[srqConclusion || ''] || srqResult.result?.resultText || srqConclusion}
+                            </p>
+                        </div>
+                        
+                        {/* Note */}
+                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <p className="text-xs text-blue-700">
+                                <strong>Catatan:</strong> SRQ-29 adalah alat skrining untuk mendeteksi gangguan kesehatan mental. 
+                                Hasil ini bukan diagnosis. Jika ada indikasi, disarankan untuk konsultasi dengan profesional kesehatan mental.
                             </p>
                         </div>
                     </div>
@@ -229,7 +256,34 @@ export default function PsychologistExamAnswersDetailPage({
                     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
                         <div className="flex items-center gap-2 mb-4">
                             <Activity className="text-blue-500" size={20} />
-                            <h2 className="text-lg font-bold text-gray-800">Hasil Analisis PSS</h2>
+                            <h2 className="text-lg font-bold text-gray-800">Hasil Analisis PSS (Perceived Stress Scale)</h2>
+                        </div>
+                        
+                        {/* Score Range Indicator */}
+                        <div className="mb-4">
+                            <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>0</span>
+                                <span>13</span>
+                                <span>26</span>
+                                <span>40</span>
+                            </div>
+                            <div className="h-3 rounded-full bg-gray-200 overflow-hidden flex">
+                                <div className="bg-green-400 flex-1"></div>
+                                <div className="bg-yellow-400 flex-1"></div>
+                                <div className="bg-red-400 flex-1"></div>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                                <span>Ringan</span>
+                                <span>Sedang</span>
+                                <span>Berat</span>
+                            </div>
+                            {/* Score Indicator */}
+                            <div className="relative mt-2">
+                                <div 
+                                    className="absolute -top-1 w-4 h-4 bg-blue-600 rounded-full border-2 border-white shadow transform -translate-x-1/2"
+                                    style={{ left: `${Math.min((attempt.score / 40) * 100, 100)}%` }}
+                                ></div>
+                            </div>
                         </div>
                         
                         <div className={`p-4 rounded-lg ${
@@ -237,8 +291,15 @@ export default function PsychologistExamAnswersDetailPage({
                             pssCategory === 'Stres Sedang' ? 'bg-yellow-50 border border-yellow-200' :
                             'bg-red-50 border border-red-200'
                         }`}>
-                            <div className="text-xs text-gray-500 mb-1">Kategori Stres</div>
-                            <p className={`text-sm font-medium ${
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs text-gray-500">Kategori Stres</div>
+                                <div className={`text-lg font-bold ${
+                                    pssCategory === 'Stres Ringan' ? 'text-green-700' :
+                                    pssCategory === 'Stres Sedang' ? 'text-yellow-700' :
+                                    'text-red-700'
+                                }`}>{pssCategory}</div>
+                            </div>
+                            <p className={`text-sm ${
                                 pssCategory === 'Stres Ringan' ? 'text-green-800' :
                                 pssCategory === 'Stres Sedang' ? 'text-yellow-800' :
                                 'text-red-800'
@@ -246,6 +307,14 @@ export default function PsychologistExamAnswersDetailPage({
                                 {pssCategory === 'Stres Ringan' && 'Skor 0-13: Tingkat stres yang dialami tergolong ringan. Individu mampu mengelola tekanan sehari-hari dengan baik.'}
                                 {pssCategory === 'Stres Sedang' && 'Skor 14-26: Tingkat stres yang dialami tergolong sedang. Perlu perhatian dan mungkin memerlukan strategi pengelolaan stres yang lebih baik.'}
                                 {pssCategory === 'Stres Berat' && 'Skor 27-40: Tingkat stres yang dialami tergolong berat. Disarankan untuk konsultasi lebih lanjut dengan profesional kesehatan mental.'}
+                            </p>
+                        </div>
+                        
+                        {/* Note about reverse scoring */}
+                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <p className="text-xs text-blue-700">
+                                <strong>Catatan:</strong> Pertanyaan nomor 4, 5, 7, 8 menggunakan penilaian terbalik (reverse scoring). 
+                                Skor sudah dihitung secara otomatis.
                             </p>
                         </div>
                     </div>

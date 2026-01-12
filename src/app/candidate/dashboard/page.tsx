@@ -4,6 +4,54 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, CheckCircle, LogOut, ArrowRight, History, X, BookOpen, FileText, Timer, AlertTriangle } from 'lucide-react';
 
+// Default instructions for specific exam types
+const EXAM_TYPE_INSTRUCTIONS: Record<string, { title: string; instructions: string; warning: string }> = {
+    pss: {
+        title: 'Perceived Stress Scale (PSS)',
+        warning: 'Pastikan Anda menjawab semua pertanyaan dengan jujur berdasarkan perasaan dan pikiran Anda selama satu bulan terakhir.',
+        instructions: `Petunjuk Pengisian:
+
+1. Bacalah pertanyaan dan pernyataan berikut dengan baik
+2. Anda diperbolehkan bertanya kepada peneliti jika ada pertanyaan/pernyataan yang tidak dimengerti
+3. Berikan tanda centang pada salah satu pilihan jawaban yang paling sesuai dengan perasaan dan pikiran Anda selama SATU BULAN TERAKHIR
+
+Keterangan Pilihan Jawaban:
+• 0 : Tidak pernah
+• 1 : Hampir tidak pernah (1-2 kali)
+• 2 : Kadang-kadang (3-4 kali)
+• 3 : Hampir sering (5-6 kali)
+• 4 : Sangat sering (lebih dari 6 kali)
+
+Selamat mengisi dan terima kasih atas kerjasamanya.`
+    },
+    srq29: {
+        title: 'Self-Reporting Questionnaire (SRQ-29)',
+        warning: 'Jawaban Anda bersifat RAHASIA dan hanya akan digunakan untuk membantu pemecahan masalah Anda.',
+        instructions: `Petunjuk Pengisian:
+
+1. Bacalah petunjuk ini seluruhnya sebelum mulai mengisi
+2. Pertanyaan berikut berhubungan dengan masalah yang mungkin mengganggu Anda selama 30 HARI TERAKHIR
+3. Apabila Anda menganggap pertanyaan itu Anda alami dalam 30 hari terakhir, berilah jawaban YA
+4. Apabila Anda menganggap pertanyaan itu TIDAK Anda alami dalam 30 hari terakhir, berilah jawaban TIDAK
+5. Jika Anda tidak yakin dengan jawabannya, berilah jawaban yang paling sesuai diantara Ya dan Tidak
+
+Kami tegaskan bahwa jawaban Anda bersifat rahasia dan akan digunakan hanya untuk membantu pemecahan masalah Anda.`
+    },
+    mmpi: {
+        title: 'Minnesota Multiphasic Personality Inventory (MMPI)',
+        warning: 'Pastikan koneksi internet stabil. Jawab dengan jujur sesuai kondisi diri Anda yang sebenarnya.',
+        instructions: `Petunjuk Pengisian:
+
+1. Di hadapan Anda akan disajikan 183 pernyataan yang harus Anda jawab
+2. Bacalah setiap pernyataan dengan cermat
+3. Jawablah setiap pernyataan dengan memilih salah satu pilihan: Ya atau Tidak
+4. Tidak ada jawaban yang benar atau salah, jawablah sesuai dengan kondisi diri Anda yang sebenarnya
+5. Pastikan semua pernyataan terjawab sebelum menyelesaikan tes
+
+Selamat mengerjakan!`
+    }
+};
+
 interface Exam {
     id: number;
     title: string;
@@ -11,6 +59,7 @@ interface Exam {
     created_at: string;
     description?: string;
     instructions?: string;
+    exam_type?: string;
 }
 
 interface CompletedExam {
@@ -61,13 +110,36 @@ export default function CandidateDashboard() {
     };
 
     const handleStartExam = (exam: Exam) => {
-        // Show instructions modal if exam has instructions
-        if (exam.instructions && exam.instructions.trim()) {
+        // Show instructions modal if exam has instructions OR has special exam_type (PSS, SRQ29, MMPI)
+        const hasCustomInstructions = exam.instructions && exam.instructions.trim();
+        const hasDefaultInstructions = exam.exam_type && EXAM_TYPE_INSTRUCTIONS[exam.exam_type];
+        
+        if (hasCustomInstructions || hasDefaultInstructions) {
             setSelectedExam(exam);
             setShowInstructionsModal(true);
         } else {
             router.push(`/candidate/exam/${exam.id}`);
         }
+    };
+
+    // Get instructions content for the modal
+    const getInstructionsContent = (exam: Exam) => {
+        // If exam has custom instructions, use those
+        if (exam.instructions && exam.instructions.trim()) {
+            return {
+                instructions: exam.instructions,
+                warning: 'Timer akan mulai setelah menekan "Mulai Ujian". Pastikan koneksi internet stabil.'
+            };
+        }
+        // Otherwise use default instructions based on exam_type
+        const defaultInstr = exam.exam_type ? EXAM_TYPE_INSTRUCTIONS[exam.exam_type] : null;
+        if (defaultInstr) {
+            return {
+                instructions: defaultInstr.instructions,
+                warning: defaultInstr.warning
+            };
+        }
+        return { instructions: '', warning: '' };
     };
 
     const handleConfirmStartExam = () => {
@@ -151,8 +223,7 @@ export default function CandidateDashboard() {
                                 <div>
                                     <h4 className="font-bold text-red-800 text-sm sm:text-base mb-0.5 sm:mb-1">Perhatian Penting!</h4>
                                     <p className="text-xs sm:text-sm text-red-700">
-                                        Timer akan mulai setelah menekan &quot;Mulai Ujian&quot;. 
-                                        Pastikan koneksi internet stabil.
+                                        {getInstructionsContent(selectedExam).warning || 'Timer akan mulai setelah menekan "Mulai Ujian". Pastikan koneksi internet stabil.'}
                                     </p>
                                 </div>
                             </div>
@@ -164,7 +235,7 @@ export default function CandidateDashboard() {
                                     Petunjuk Pengerjaan
                                 </h4>
                                 <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap leading-relaxed text-xs sm:text-sm">
-                                    {selectedExam.instructions}
+                                    {getInstructionsContent(selectedExam).instructions}
                                 </div>
                             </div>
                         </div>

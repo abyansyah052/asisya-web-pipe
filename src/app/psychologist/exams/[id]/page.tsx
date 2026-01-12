@@ -294,17 +294,34 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                     </tr>
                                 ) : displayedResults.map((res: any) => (
                                     <tr key={res.id || res.user_id} className={`hover:bg-gray-50 ${!res.id ? 'bg-gray-50/50' : ''}`}>
-                                        <td className="px-6 py-4 font-medium text-gray-800 flex items-center gap-2">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                res.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'
-                                            }`}>
-                                                {res.student?.charAt(0) || '?'}
-                                            </div>
-                                            <div>
-                                                {res.student}
-                                                {!res.id && (
-                                                    <span className="ml-2 text-xs text-orange-500 font-normal">(Belum mengerjakan)</span>
-                                                )}
+                                        <td className="px-6 py-4 font-medium text-gray-800">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                                    res.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'
+                                                }`}>
+                                                    {res.student?.charAt(0) || '?'}
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span>{res.student}</span>
+                                                    {!res.id && (
+                                                        <span className="text-xs text-orange-500 font-normal">(Belum mengerjakan)</span>
+                                                    )}
+                                                    {/* PSS Label under name */}
+                                                    {res.pss_category && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 ${
+                                                            res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                            res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-red-100 text-red-700'
+                                                        }`}>{res.pss_category}</span>
+                                                    )}
+                                                    {/* SRQ Label under name */}
+                                                    {res.srq_conclusion && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 max-w-[120px] truncate ${
+                                                            res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                            'bg-orange-100 text-orange-700'
+                                                        }`} title={res.srq_conclusion}>{res.srq_conclusion.split(' - ')[0]}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-gray-500 text-sm">
@@ -422,6 +439,20 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-gray-900 truncate">{res.student}</div>
+                                        {/* PSS/SRQ Label under name in mobile */}
+                                        {res.pss_category && (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 ${
+                                                res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-red-100 text-red-700'
+                                            }`}>{res.pss_category}</div>
+                                        )}
+                                        {res.srq_conclusion && (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium w-fit mt-0.5 max-w-[120px] truncate ${
+                                                res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                'bg-orange-100 text-orange-700'
+                                            }`} title={res.srq_conclusion}>{res.srq_conclusion.split(' - ')[0]}</div>
+                                        )}
                                         <div className="text-xs text-gray-500 mt-0.5">
                                             {res.end_time ? new Date(res.end_time).toLocaleDateString('id-ID', { 
                                                 day: 'numeric', 
