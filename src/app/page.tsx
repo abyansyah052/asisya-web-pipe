@@ -53,7 +53,7 @@ export default function CandidateLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#E6FBFB] via-[#BEE7F0] to-[#0993A9]/20">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#E6FBFB] via-[#D5F4F8] to-[#C8EEF5]">
       <div className="w-full max-w-[1100px] min-h-[650px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col lg:flex-row">
         {/* Left Side - Hero with Kimia Farma Navy & Teal Theme - Hidden on mobile */}
         <div

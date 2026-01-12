@@ -524,7 +524,15 @@ jobs:
             fi
           fi
           
-          cd deploy && zip -r ../build.zip .
+          # Create zip with maximum compression
+          cd deploy && zip -r -9 ../build.zip .
+          cd ..
+          
+          # Generate checksum for verification
+          sha256sum build.zip > build.zip.sha256
+          echo "Build package created:"
+          ls -lh build.zip
+          cat build.zip.sha256
 
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -532,8 +540,39 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "build.zip"
+          source: "build.zip,build.zip.sha256"
           target: "/var/www/asisya-web"
+          overwrite: true
+          timeout: 300s
+          command_timeout: 10m
+
+      - name: Verify Upload Integrity
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /var/www/asisya-web
+            
+            echo "Verifying upload integrity..."
+            
+            # Check if files exist
+            if [ ! -f "build.zip" ] || [ ! -f "build.zip.sha256" ]; then
+              echo "ERROR: Upload files missing!"
+              exit 1
+            fi
+            
+            # Verify checksum
+            if sha256sum -c build.zip.sha256; then
+              echo "✅ Checksum verified - file integrity OK"
+            else
+              echo "❌ Checksum mismatch - file may be corrupted!"
+              exit 1
+            fi
+            
+            # Show file size
+            ls -lh build.zip
 
       - name: Run Database Migrations (Smart Tracking)
         if: steps.check-migrations.outputs.has_migrations == 'true'
@@ -727,7 +766,14 @@ jobs:
           cp package.json deploy/
           cp package-lock.json deploy/
           cp next.config.ts deploy/
-          cd deploy && zip -r ../build.zip .
+          
+          # Create zip with checksum
+          cd deploy && zip -r -9 ../build.zip .
+          cd ..
+          sha256sum build.zip > build.zip.sha256
+          echo "Build package created:"
+          ls -lh build.zip
+          cat build.zip.sha256
 
       - name: Upload to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -735,8 +781,11 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "build.zip"
+          source: "build.zip,build.zip.sha256"
           target: "/var/www/asisya-web"
+          overwrite: true
+          timeout: 300s
+          command_timeout: 10m
 
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -747,9 +796,17 @@ jobs:
           script: |
             cd /var/www/asisya-web
             
+            # Verify integrity first
+            echo "Verifying upload integrity..."
+            if ! sha256sum -c build.zip.sha256; then
+              echo "ERROR: Checksum mismatch - upload corrupted!"
+              exit 1
+            fi
+            echo "✅ Checksum verified"
+            
             echo "Extracting build..."
             unzip -o build.zip
-            rm build.zip
+            rm build.zip build.zip.sha256
             
             echo "Installing production dependencies..."
             npm ci --production

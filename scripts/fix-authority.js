@@ -13,11 +13,11 @@
 
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: '../.env.local' });
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: process.env.DATABASE_URL?.includes('neon') ? { rejectUnauthorized: false } : false
 });
 
 // Users yang harus diperbaiki role-nya
