@@ -312,13 +312,38 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                                 <span className="text-gray-400 italic">-</span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-center font-bold text-lg text-blue-600">
-                                            {res.score !== null ? res.score : (
+                                        <td className="px-6 py-4 text-center">
+                                            {/* PSS Result - show category with color */}
+                                            {res.pss_category ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                                        res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                        res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                        'bg-red-100 text-red-700'
+                                                    }`}>{res.pss_category}</span>
+                                                </div>
+                                            /* SRQ-29 Result - show conclusion */
+                                            ) : res.srq_conclusion ? (
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                                    <span className={`text-xs px-2 py-1 rounded-full font-medium max-w-[150px] truncate ${
+                                                        res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                        'bg-orange-100 text-orange-700'
+                                                    }`} title={res.srq_conclusion}>{res.srq_conclusion}</span>
+                                                </div>
+                                            /* General exam - just show score */
+                                            ) : res.score !== null ? (
+                                                <span className="font-bold text-lg text-blue-600">{res.score}</span>
+                                            ) : (
                                                 <span className="text-gray-400 text-sm font-normal">-</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {res.id ? (
+                                            {/* Hide correct/incorrect for PSS/SRQ - not relevant */}
+                                            {res.pss_category || res.srq_conclusion ? (
+                                                <span className="text-gray-400">-</span>
+                                            ) : res.id ? (
                                                 <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-bold">
                                                     <CheckCircle size={14} /> {res.correct_count}
                                                 </span>
@@ -327,7 +352,10 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {res.id ? (
+                                            {/* Hide correct/incorrect for PSS/SRQ - not relevant */}
+                                            {res.pss_category || res.srq_conclusion ? (
+                                                <span className="text-gray-400">-</span>
+                                            ) : res.id ? (
                                                 <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-bold">
                                                     <XCircle size={14} /> {res.incorrect_count}
                                                 </span>
@@ -409,22 +437,39 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                         <div className={`text-2xl font-bold ${res.id ? 'text-blue-600' : 'text-gray-400'}`}>
                                             {res.score !== null ? res.score : '-'}
                                         </div>
-                                        <div className="text-[10px] text-gray-400">Nilai</div>
+                                        {/* Show PSS category or SRQ conclusion in mobile */}
+                                        {res.pss_category ? (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                                res.pss_category === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                                res.pss_category === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-red-100 text-red-700'
+                                            }`}>{res.pss_category}</div>
+                                        ) : res.srq_conclusion ? (
+                                            <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium truncate max-w-[80px] ${
+                                                res.srq_conclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                                'bg-orange-100 text-orange-700'
+                                            }`}>{res.srq_conclusion.split(' - ')[0]}</div>
+                                        ) : (
+                                            <div className="text-[10px] text-gray-400">Nilai</div>
+                                        )}
                                     </div>
                                 </div>
                                 
                                 {res.id ? (
                                     <>
-                                        <div className="flex gap-2 mb-3">
-                                            <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
-                                                <div className="text-xs text-green-600 font-medium">Benar</div>
-                                                <div className="text-lg font-bold text-green-700">{res.correct_count}</div>
+                                        {/* Only show Benar/Salah for non-PSS/SRQ exams */}
+                                        {!res.pss_category && !res.srq_conclusion && (
+                                            <div className="flex gap-2 mb-3">
+                                                <div className="flex-1 bg-green-50 rounded-lg p-2 text-center">
+                                                    <div className="text-xs text-green-600 font-medium">Benar</div>
+                                                    <div className="text-lg font-bold text-green-700">{res.correct_count}</div>
+                                                </div>
+                                                <div className="flex-1 bg-red-50 rounded-lg p-2 text-center">
+                                                    <div className="text-xs text-red-600 font-medium">Salah</div>
+                                                    <div className="text-lg font-bold text-red-700">{res.incorrect_count}</div>
+                                                </div>
                                             </div>
-                                            <div className="flex-1 bg-red-50 rounded-lg p-2 text-center">
-                                                <div className="text-xs text-red-600 font-medium">Salah</div>
-                                                <div className="text-lg font-bold text-red-700">{res.incorrect_count}</div>
-                                            </div>
-                                        </div>
+                                        )}
 
                                         <div className="grid grid-cols-2 gap-2">
                                             <button

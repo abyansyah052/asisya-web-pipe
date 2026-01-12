@@ -39,7 +39,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
             // 1. Check if exam exists and is published
             const examRes = await client.query(
-                'SELECT id, title, duration_minutes, display_mode, instructions, description, require_all_answers, status FROM exams WHERE id = $1',
+                'SELECT id, title, duration_minutes, display_mode, instructions, description, require_all_answers, status, exam_type FROM exams WHERE id = $1',
                 [examId]
             );
             if (examRes.rows.length === 0) {
@@ -144,7 +144,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     display_mode: exam.display_mode || 'per_page',
                     instructions: exam.instructions || null,
                     description: exam.description || null,
-                    require_all_answers: exam.require_all_answers || false
+                    require_all_answers: exam.require_all_answers || false,
+                    exam_type: exam.exam_type || 'general'
                 },
                 attemptId,
                 questions,

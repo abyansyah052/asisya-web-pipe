@@ -21,7 +21,6 @@ export default function CreateExamPage() {
     const [description, setDescription] = useState('');
     const [duration, setDuration] = useState(60);
     const [displayMode, setDisplayMode] = useState<'per_page' | 'scroll'>('per_page');
-    const [examType, setExamType] = useState<'general' | 'mmpi' | 'pss' | 'srq29'>('general');
     const [questions, setQuestions] = useState<Question[]>([{
         text: '',
         marks: 1,
@@ -121,7 +120,6 @@ export default function CreateExamPage() {
                     description,
                     duration_minutes: duration,
                     display_mode: displayMode,
-                    exam_type: examType,
                     questions
                 })
             });
@@ -233,31 +231,6 @@ export default function CreateExamPage() {
                                 className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
                                 min={1}
                             />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Tipe Ujian
-                            </label>
-                            <div className="grid grid-cols-2 gap-3">
-                                {[
-                                    { value: 'general', label: 'Ujian Umum', color: 'blue' },
-                                    { value: 'mmpi', label: 'MMPI', color: 'purple' },
-                                    { value: 'pss', label: 'Perceived Stress Scale (PSS)', color: 'green' },
-                                    { value: 'srq29', label: 'Self Reporting Questionare (SRQ-29)', color: 'orange' }
-                                ].map(type => (
-                                    <label key={type.value} className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${examType === type.value ? `border-${type.color}-600 bg-${type.color}-50` : 'border-gray-200 hover:border-gray-300'}`}>
-                                        <input
-                                            type="radio"
-                                            name="examType"
-                                            value={type.value}
-                                            checked={examType === type.value}
-                                            onChange={() => setExamType(type.value as any)}
-                                            className="w-4 h-4"
-                                        />
-                                        <span className="text-sm font-medium text-gray-900">{type.label}</span>
-                                    </label>
-                                ))}
-                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -61,6 +61,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ea.status as attempt_status,
             ea.start_time,
             up.gender,
+            ea.pss_category,
+            ea.srq_conclusion,
             (
                 SELECT COUNT(*) 
                 FROM answers a 

@@ -12,6 +12,7 @@ interface Exam {
     description: string;
     question_count: number;
     exam_type?: 'general' | 'mmpi' | 'pss' | 'srq29';
+    is_standard?: boolean;
 }
 
 export default function AdminDashboard() {
@@ -59,8 +60,11 @@ export default function AdminDashboard() {
 
     const handleDeleteClick = (examId: number) => {
         const exam = exams.find(e => e.id === examId);
-        if (exam?.exam_type === 'pss' || exam?.exam_type === 'srq29') {
-            alert(`Ujian ${exam.exam_type === 'pss' ? 'PSS' : 'SRQ-29'} tidak dapat dihapus karena merupakan soal standar sistem.`);
+        if (exam?.is_standard) {
+            const typeLabel = exam.exam_type === 'pss' ? 'PSS' : 
+                              exam.exam_type === 'srq29' ? 'SRQ-29' : 
+                              exam.exam_type === 'mmpi' ? 'MMPI' : 'Standar';
+            alert(`Ujian ${typeLabel} tidak dapat dihapus karena merupakan soal standar sistem.`);
             return;
         }
         setDeleteModal({show: true, examId});
@@ -322,13 +326,13 @@ export default function AdminDashboard() {
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteClick(exam.id)}
-                                                    disabled={exam.exam_type === 'pss' || exam.exam_type === 'srq29'}
+                                                    disabled={exam.is_standard}
                                                     className={`font-medium text-sm inline-flex items-center gap-1 ${
-                                                        exam.exam_type === 'pss' || exam.exam_type === 'srq29'
+                                                        exam.is_standard
                                                             ? 'text-gray-400 cursor-not-allowed'
                                                             : 'text-red-600 hover:text-red-800'
                                                     }`}
-                                                    title={exam.exam_type === 'pss' || exam.exam_type === 'srq29' ? 'Ujian standar tidak dapat dihapus' : ''}
+                                                    title={exam.is_standard ? 'Ujian standar tidak dapat dihapus' : ''}
                                                 >
                                                     <Trash2 size={16} /> Hapus
                                                 </button>

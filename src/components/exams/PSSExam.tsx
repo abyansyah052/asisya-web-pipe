@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 
-interface PSS Answer {
+interface PSSAnswer {
   [key: number]: number; // question number: score (0-4)
 }
 
 interface Props {
   examId: string;
-  onSubmit: (answers: PSS Answer, score: number, category: string) => void;
+  onSubmit: (answers: PSSAnswer, score: number, category: string) => void;
   onBack: () => void;
 }
 
@@ -30,7 +30,7 @@ const REVERSE_QUESTIONS = [4, 5, 7, 8]; // 1-indexed
 
 export default function PSSExam({ examId, onSubmit, onBack }: Props) {
   const [showInstructions, setShowInstructions] = useState(true);
-  const [answers, setAnswers] = useState<PSS Answer>({});
+  const [answers, setAnswers] = useState<PSSAnswer>({});
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<{ score: number; category: string } | null>(null);

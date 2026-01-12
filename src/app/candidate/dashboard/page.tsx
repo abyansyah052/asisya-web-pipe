@@ -193,8 +193,8 @@ export default function CandidateDashboard() {
             <header className="sticky top-0 z-50 w-full border-b border-[#0993A9]/20 bg-white shadow-sm">
                 <div className="px-3 sm:px-4 md:px-8 lg:px-40 flex h-14 sm:h-16 items-center justify-between max-w-[1440px] mx-auto">
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-900 min-w-0">
-                        <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-8 sm:h-10 w-auto shrink-0" />
-                        <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate text-[#071F56]">Kimia Farma Assessment</h2>
+                        <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-10 sm:h-14 w-auto shrink-0" />
+                        <h2 className="text-xs sm:text-base font-bold tracking-tight truncate text-[#071F56]">Kimia Farma Assessment</h2>
                     </div>
                     <button
                         onClick={handleLogout}
