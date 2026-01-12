@@ -32,7 +32,11 @@ export async function GET() {
                     LIMIT 1
                 ),
                 completed_exams AS (
-                    SELECT ea.id as attempt_id, e.title, ea.end_time as date, ea.score, ea.status
+                    SELECT ea.id as attempt_id, e.title, ea.end_time as date, 
+                           -- ✅ PSS/SRQ: Hide score from candidates, only show completion status
+                           CASE WHEN e.exam_type IN ('pss', 'srq29') THEN NULL ELSE ea.score END as score,
+                           ea.status,
+                           e.exam_type
                     FROM exam_attempts ea
                     JOIN exams e ON ea.exam_id = e.id
                     WHERE ea.user_id = $1 AND ea.status = 'completed'

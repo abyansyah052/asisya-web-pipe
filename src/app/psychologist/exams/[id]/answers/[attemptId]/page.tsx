@@ -2,7 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle, XCircle, User, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, User, Clock, FileText, AlertTriangle, Activity } from 'lucide-react';
+
+// SRQ Result Text mapping sesuai update.md
+const SRQ_RESULT_TEXTS: Record<string, string> = {
+    'Normal': 'Normal. Tidak terdapat gejala psikologis seperti cemas dan depresi. Tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik, gejala PTSD/gejala stress setelah trauma',
+    'Tidak Normal - PTSD Only': 'Tidak Normal. Terdapat gejala PTSD/gejala stress setelah trauma. Namun, tidak terdapat gejala psikologis seperti cemas dan depresi, penggunaan zat psikoaktif/narkoba, dan gejala episode psikotik.',
+    'Tidak Normal - Cemas & Depresi': 'Tidak Normal. Terdapat gejala psikologis seperti cemas dan depresi. Namun tidak terdapat penggunaan zat psikoaktif/narkoba, gejala episode psikotik dan gejala PTSD/gejala stress setelah trauma',
+    'Tidak Normal - Episode Psikotik Only': 'Tidak Normal. Terdapat gejala episode psikotik. Namun tidak terdapat gejala psikologis seperti cemas dan depresi, penggunaan zat psikoaktif/narkoba, dan gejala PTSD/gejala stress setelah trauma',
+    'Tidak Normal - PTSD + Psikotik': 'Tidak Normal. Terdapat gejala episode psikotik dan gejala PTSD/stress setelah trauma. Namun tidak terdapat gejala cemas/depresi dan penggunaan zat adiktif/narkoba',
+    'Tidak Normal - Cemas, Depresi, PTSD': 'Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi dan PTSD. Namun tidak terdapat gejala episode psikotik dan penggunaan zat psikoaktif/narkoba',
+    'Tidak Normal - Cemas, Depresi, Psikotik': 'Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi dan gejala episode psikotik. Namun tidak terdapat gejala PTSD dan penggunaan zat psikoaktif/narkoba',
+    'Tidak Normal - All Symptoms': 'Tidak Normal. Terdapat gejala psikologis seperti cemas, depresi, gejala episode psikotik, dan PTSD/gejala stress setelah trauma. Namun, tidak terdapat penggunaan zat adiktif/narkoba'
+};
 
 export default function PsychologistExamAnswersDetailPage({ 
     params 
@@ -18,6 +30,12 @@ export default function PsychologistExamAnswersDetailPage({
     const [totalQuestions, setTotalQuestions] = useState(0);
     const [answeredQuestions, setAnsweredQuestions] = useState(0);
     const [isAssignedToMe, setIsAssignedToMe] = useState(true);
+    // PSS/SRQ specific state
+    const [examType, setExamType] = useState<string>('general');
+    const [pssResult, setPssResult] = useState<any>(null);
+    const [pssCategory, setPssCategory] = useState<string | null>(null);
+    const [srqResult, setSrqResult] = useState<any>(null);
+    const [srqConclusion, setSrqConclusion] = useState<string | null>(null);
 
     useEffect(() => {
         params.then(p => {
@@ -42,6 +60,12 @@ export default function PsychologistExamAnswersDetailPage({
                     setTotalQuestions(data.totalQuestions || 0);
                     setAnsweredQuestions(data.answeredQuestions || data.answers.length);
                     setIsAssignedToMe(data.isAssignedToMe !== false);
+                    // PSS/SRQ specific
+                    setExamType(data.examType || 'general');
+                    setPssResult(data.pssResult);
+                    setPssCategory(data.pssCategory);
+                    setSrqResult(data.srqResult);
+                    setSrqConclusion(data.srqConclusion);
                 }
             } catch (e) {
                 console.error(e);
@@ -85,6 +109,11 @@ export default function PsychologistExamAnswersDetailPage({
                                 <div className="flex items-center gap-2">
                                     <User size={14} className="text-gray-400 sm:w-4 sm:h-4" />
                                     <span className="font-medium text-gray-700">{attempt.full_name}</span>
+                                    {attempt.gender && (
+                                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                            {attempt.gender}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Clock size={14} className="text-gray-400 sm:w-4 sm:h-4" />
@@ -107,19 +136,120 @@ export default function PsychologistExamAnswersDetailPage({
                             </div>
                         </div>
                         <div className="text-left lg:text-right">
-                            <div className="text-xs sm:text-sm text-gray-500 mb-1">Nilai Akhir</div>
-                            <div className="text-3xl sm:text-4xl font-bold text-blue-600">{attempt.score}</div>
-                            <div className="mt-2 flex gap-2">
-                                <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold">
-                                    <CheckCircle size={12} /> {answers.filter(a => a.is_correct).length} Benar
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold">
-                                    <XCircle size={12} /> {answers.filter(a => !a.is_correct).length} Salah
-                                </span>
-                            </div>
+                            {/* PSS Result Display */}
+                            {examType === 'pss' && pssCategory ? (
+                                <div>
+                                    <div className="text-xs sm:text-sm text-gray-500 mb-1">Skor Total</div>
+                                    <div className="text-3xl sm:text-4xl font-bold text-blue-600">{attempt.score}</div>
+                                    <div className={`mt-2 inline-block text-sm px-3 py-1.5 rounded-full font-medium ${
+                                        pssCategory === 'Stres Ringan' ? 'bg-green-100 text-green-700' :
+                                        pssCategory === 'Stres Sedang' ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-red-100 text-red-700'
+                                    }`}>
+                                        {pssCategory}
+                                    </div>
+                                </div>
+                            ) : examType === 'srq29' && srqConclusion ? (
+                                <div>
+                                    <div className="text-xs sm:text-sm text-gray-500 mb-1">Total Jawaban Ya</div>
+                                    <div className="text-3xl sm:text-4xl font-bold text-blue-600">{attempt.score}</div>
+                                    <div className={`mt-2 inline-block text-sm px-3 py-1.5 rounded-full font-medium ${
+                                        srqConclusion === 'Normal' ? 'bg-green-100 text-green-700' :
+                                        'bg-orange-100 text-orange-700'
+                                    }`}>
+                                        {srqConclusion}
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="text-xs sm:text-sm text-gray-500 mb-1">Nilai Akhir</div>
+                                    <div className="text-3xl sm:text-4xl font-bold text-blue-600">{attempt.score}</div>
+                                    <div className="mt-2 flex gap-2">
+                                        <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold">
+                                            <CheckCircle size={12} /> {answers.filter(a => a.is_correct).length} Benar
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 sm:px-3 py-1 rounded-full text-xs font-bold">
+                                            <XCircle size={12} /> {answers.filter(a => !a.is_correct).length} Salah
+                                        </span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
+
+                {/* SRQ-29 Detailed Result Card */}
+                {examType === 'srq29' && srqResult && (
+                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <AlertTriangle className="text-orange-500" size={20} />
+                            <h2 className="text-lg font-bold text-gray-800">Hasil Analisis SRQ-29</h2>
+                        </div>
+                        
+                        {/* Interpretasi */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                            <div className={`p-3 rounded-lg border ${srqResult.result?.anxiety ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                                <div className="text-xs text-gray-500 mb-1">Cemas & Depresi (No. 1-20)</div>
+                                <div className={`font-bold ${srqResult.result?.anxiety ? 'text-red-700' : 'text-green-700'}`}>
+                                    {srqResult.result?.anxiety ? 'Terdeteksi (≥5 Ya)' : 'Normal (<5 Ya)'}
+                                </div>
+                            </div>
+                            <div className={`p-3 rounded-lg border ${srqResult.result?.substance ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                                <div className="text-xs text-gray-500 mb-1">Zat Psikoaktif (No. 21)</div>
+                                <div className={`font-bold ${srqResult.result?.substance ? 'text-red-700' : 'text-green-700'}`}>
+                                    {srqResult.result?.substance ? 'Terdeteksi' : 'Normal'}
+                                </div>
+                            </div>
+                            <div className={`p-3 rounded-lg border ${srqResult.result?.psychotic ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                                <div className="text-xs text-gray-500 mb-1">Episode Psikotik (No. 22-24)</div>
+                                <div className={`font-bold ${srqResult.result?.psychotic ? 'text-red-700' : 'text-green-700'}`}>
+                                    {srqResult.result?.psychotic ? 'Terdeteksi' : 'Normal'}
+                                </div>
+                            </div>
+                            <div className={`p-3 rounded-lg border ${srqResult.result?.ptsd ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                                <div className="text-xs text-gray-500 mb-1">PTSD (No. 25-29)</div>
+                                <div className={`font-bold ${srqResult.result?.ptsd ? 'text-red-700' : 'text-green-700'}`}>
+                                    {srqResult.result?.ptsd ? 'Terdeteksi' : 'Normal'}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Kesimpulan lengkap */}
+                        <div className={`p-4 rounded-lg ${srqConclusion === 'Normal' ? 'bg-green-50 border border-green-200' : 'bg-orange-50 border border-orange-200'}`}>
+                            <div className="text-xs text-gray-500 mb-1">Kesimpulan</div>
+                            <p className={`text-sm ${srqConclusion === 'Normal' ? 'text-green-800' : 'text-orange-800'}`}>
+                                {SRQ_RESULT_TEXTS[srqConclusion || ''] || srqResult.result?.resultText || srqConclusion}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* PSS Detailed Result Card */}
+                {examType === 'pss' && pssResult && (
+                    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 mb-4 sm:mb-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Activity className="text-blue-500" size={20} />
+                            <h2 className="text-lg font-bold text-gray-800">Hasil Analisis PSS</h2>
+                        </div>
+                        
+                        <div className={`p-4 rounded-lg ${
+                            pssCategory === 'Stres Ringan' ? 'bg-green-50 border border-green-200' :
+                            pssCategory === 'Stres Sedang' ? 'bg-yellow-50 border border-yellow-200' :
+                            'bg-red-50 border border-red-200'
+                        }`}>
+                            <div className="text-xs text-gray-500 mb-1">Kategori Stres</div>
+                            <p className={`text-sm font-medium ${
+                                pssCategory === 'Stres Ringan' ? 'text-green-800' :
+                                pssCategory === 'Stres Sedang' ? 'text-yellow-800' :
+                                'text-red-800'
+                            }`}>
+                                {pssCategory === 'Stres Ringan' && 'Skor 0-13: Tingkat stres yang dialami tergolong ringan. Individu mampu mengelola tekanan sehari-hari dengan baik.'}
+                                {pssCategory === 'Stres Sedang' && 'Skor 14-26: Tingkat stres yang dialami tergolong sedang. Perlu perhatian dan mungkin memerlukan strategi pengelolaan stres yang lebih baik.'}
+                                {pssCategory === 'Stres Berat' && 'Skor 27-40: Tingkat stres yang dialami tergolong berat. Disarankan untuk konsultasi lebih lanjut dengan profesional kesehatan mental.'}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Answers List */}
                 <div className="space-y-3 sm:space-y-4">

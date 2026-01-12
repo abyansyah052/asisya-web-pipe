@@ -40,8 +40,14 @@ export async function GET(
                 ea.score,
                 ea.start_time,
                 ea.end_time,
+                ea.pss_result,
+                ea.pss_category,
+                ea.srq_result,
+                ea.srq_conclusion,
                 e.title as exam_title,
+                e.exam_type,
                 COALESCE(up.full_name, u.full_name, u.username) as full_name,
+                up.jenis_kelamin as gender,
                 u.email
              FROM exam_attempts ea
              JOIN exams e ON ea.exam_id = e.id
@@ -151,7 +157,13 @@ export async function GET(
             answers,
             isAssignedToMe,
             totalQuestions: questionsResult.rows.length,
-            answeredQuestions: answers.length
+            answeredQuestions: answers.length,
+            // PSS/SRQ specific data
+            examType: attempt.exam_type,
+            pssResult: attempt.pss_result ? JSON.parse(attempt.pss_result) : null,
+            pssCategory: attempt.pss_category,
+            srqResult: attempt.srq_result ? JSON.parse(attempt.srq_result) : null,
+            srqConclusion: attempt.srq_conclusion
         });
 
     } catch (error) {
