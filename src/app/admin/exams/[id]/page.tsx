@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download, Search, Trash2, Building2 } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download, Search, Trash2, Building2, CheckSquare, Square } from 'lucide-react';
 
 interface CompanyCode {
     id: number;
@@ -28,6 +28,9 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
     // Delete state
     const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<{show: boolean; attemptId: number | null; studentName: string}>({show: false, attemptId: null, studentName: ''});
+    // Selection state for bulk delete
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
@@ -110,6 +113,11 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
             if (res.ok) {
                 setResults(prev => prev.filter(r => r.id !== attemptId));
                 setShowDeleteConfirm({show: false, attemptId: null, studentName: ''});
+                setSelectedIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(attemptId);
+                    return newSet;
+                });
             } else {
                 const err = await res.json();
                 alert(err.error || 'Gagal menghapus hasil ujian');
@@ -118,6 +126,65 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
             alert('Terjadi kesalahan saat menghapus');
         } finally {
             setDeleteLoading(null);
+        }
+    };
+
+    // Toggle selection
+    const toggleSelection = (id: number) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    // Select all visible results
+    const selectAll = () => {
+        if (selectedIds.size === displayedResults.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(displayedResults.map(r => r.id)));
+        }
+    };
+
+    // Bulk delete selected results
+    const bulkDeleteResults = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const confirmMsg = `Yakin ingin menghapus ${selectedIds.size} hasil ujian yang dipilih?`;
+        if (!confirm(confirmMsg)) return;
+
+        setBulkDeleting(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const id of selectedIds) {
+            try {
+                const res = await fetch(`/api/admin/exams/results/${id}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch {
+                failCount++;
+            }
+        }
+
+        setBulkDeleting(false);
+        setSelectedIds(new Set());
+        
+        // Refresh results
+        setResults(prev => prev.filter(r => !selectedIds.has(r.id)));
+        
+        if (failCount > 0) {
+            alert(`Berhasil hapus ${successCount} hasil, gagal ${failCount} hasil.`);
+        } else {
+            alert(`Berhasil menghapus ${successCount} hasil ujian.`);
         }
     };
 
@@ -259,7 +326,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                 <div className="mb-6 flex flex-col gap-4">
                     {/* Company Code Filter - TOP LEVEL */}
                     {companyCodes.length > 0 && (
-                        <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
                             <Building2 size={18} className="text-blue-600" />
                             <span className="text-sm font-medium text-blue-800">Perusahaan:</span>
                             <select
@@ -267,23 +334,46 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                 onChange={(e) => {
                                     setSelectedCompanyCode(e.target.value);
                                     setSelectedAdminId(null); // Reset admin filter when company changes
+                                    setSelectedIds(new Set()); // Reset selection
                                 }}
                                 className="flex-1 sm:flex-none sm:w-64 px-3 py-2 border border-blue-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
-                                <option value="">Semua Perusahaan</option>
-                                {companyCodes.map((cc) => (
-                                    <option key={cc.id} value={cc.code}>
-                                        {cc.company_name} ({cc.code})
-                                    </option>
-                                ))}
+                                <option value="">Semua Perusahaan ({results.length})</option>
+                                {companyCodes.map((cc) => {
+                                    const count = results.filter(r => r.company_code === cc.code).length;
+                                    return (
+                                        <option key={cc.id} value={cc.code}>
+                                            {cc.company_name} ({cc.code}) - {count} hasil
+                                        </option>
+                                    );
+                                })}
                             </select>
                             {selectedCompanyCode && (
                                 <button
-                                    onClick={() => setSelectedCompanyCode('')}
+                                    onClick={() => {
+                                        setSelectedCompanyCode('');
+                                        setSelectedIds(new Set());
+                                    }}
                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                 >
                                     Reset
                                 </button>
+                            )}
+                            {/* Bulk actions */}
+                            {selectedIds.size > 0 && (
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="text-sm text-blue-700 font-medium">
+                                        {selectedIds.size} dipilih
+                                    </span>
+                                    <button
+                                        onClick={bulkDeleteResults}
+                                        disabled={bulkDeleting}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50"
+                                    >
+                                        <Trash2 size={14} />
+                                        {bulkDeleting ? 'Menghapus...' : 'Hapus Terpilih'}
+                                    </button>
+                                </div>
                             )}
                         </div>
                     )}
@@ -374,6 +464,19 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm">
+                                    <th className="px-4 py-3 font-medium w-10">
+                                        <button
+                                            onClick={selectAll}
+                                            className="text-gray-500 hover:text-blue-600"
+                                            title={selectedIds.size === displayedResults.length ? "Hapus semua pilihan" : "Pilih semua"}
+                                        >
+                                            {selectedIds.size === displayedResults.length && displayedResults.length > 0 ? (
+                                                <CheckSquare size={18} className="text-blue-600" />
+                                            ) : (
+                                                <Square size={18} />
+                                            )}
+                                        </button>
+                                    </th>
                                     <th className="px-6 py-3 font-medium">Nama Peserta</th>
                                     <th className="px-6 py-3 font-medium">Waktu Selesai</th>
                                     <th className="px-6 py-3 font-medium text-center">Nilai</th>
@@ -385,7 +488,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                             <tbody className="divide-y divide-gray-100">
                                 {displayedResults.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                        <td colSpan={7} className="px-6 py-8 text-center text-gray-500 text-sm">
                                             {selectedAdminId !== null
                                                 ? 'Belum ada kandidat dari admin ini yang menyelesaikan ujian.'
                                                 : isAssignedOnly
@@ -395,7 +498,19 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                         </td>
                                     </tr>
                                 ) : displayedResults.map((res: any) => (
-                                    <tr key={res.id} className="hover:bg-gray-50">
+                                    <tr key={res.id} className={`hover:bg-gray-50 ${selectedIds.has(res.id) ? 'bg-blue-50' : ''}`}>
+                                        <td className="px-4 py-4">
+                                            <button
+                                                onClick={() => toggleSelection(res.id)}
+                                                className="text-gray-500 hover:text-blue-600"
+                                            >
+                                                {selectedIds.has(res.id) ? (
+                                                    <CheckSquare size={18} className="text-blue-600" />
+                                                ) : (
+                                                    <Square size={18} />
+                                                )}
+                                            </button>
+                                        </td>
                                         <td className="px-6 py-4 font-medium text-gray-800">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">

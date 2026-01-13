@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Copy, CheckCircle2, Trash2, Plus, ArrowLeft, RefreshCw, Download, UserX, Upload, FileSpreadsheet, X, Search } from 'lucide-react';
+import { KeyRound, Copy, CheckCircle2, Trash2, Plus, ArrowLeft, RefreshCw, Download, UserX, Upload, FileSpreadsheet, X, Search, Building2, CheckSquare, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface CandidateCode {
@@ -18,6 +18,8 @@ interface CandidateCode {
     exam_title: string | null;
     used_by_user_id: number | null;
     used_by_email: string | null;
+    company_code: string | null;
+    company_name: string | null;
 }
 
 interface Exam {
@@ -62,19 +64,17 @@ export default function AdminCodesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     // Company code filter state
     const [filterCompanyCode, setFilterCompanyCode] = useState<string>('');
+    // Selection state for bulk operations
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     // Filtered codes based on company code and search
     const filteredCodes = useMemo(() => {
         let filtered = codes;
         
-        // First filter by company code
+        // First filter by company code (from database field, not parsing string)
         if (filterCompanyCode) {
-            filtered = filtered.filter(c => {
-                // Extract company code from the code string (format: MMYYXXXX-NNNN where XXXX is company code)
-                const codeMatch = c.code?.match(/^\d{4}(\d{4})-/);
-                const codeCompanyPart = codeMatch ? codeMatch[1] : null;
-                return codeCompanyPart === filterCompanyCode;
-            });
+            filtered = filtered.filter(c => c.company_code === filterCompanyCode);
         }
         
         // Then filter by search query
@@ -90,6 +90,65 @@ export default function AdminCodesPage() {
         
         return filtered;
     }, [codes, filterCompanyCode, searchQuery]);
+
+    // Toggle selection
+    const toggleSelection = (id: number) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    // Select all visible codes
+    const selectAll = () => {
+        if (selectedIds.size === filteredCodes.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredCodes.map(c => c.id)));
+        }
+    };
+
+    // Bulk delete selected codes
+    const bulkDeleteCodes = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const confirmMsg = `Yakin ingin menghapus ${selectedIds.size} kode yang dipilih? Kode yang sudah terpakai akan menghapus kandidat terkait juga.`;
+        if (!confirm(confirmMsg)) return;
+
+        setBulkDeleting(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const id of selectedIds) {
+            try {
+                const res = await fetch(`/api/admin/codes/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deleteCandidate: true })
+                });
+                if (res.ok) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch {
+                failCount++;
+            }
+        }
+
+        setBulkDeleting(false);
+        setSelectedIds(new Set());
+        fetchCodes();
+        
+        if (failCount > 0) {
+            alert(`Berhasil hapus ${successCount} kode, gagal ${failCount} kode.`);
+        } else {
+            alert(`Berhasil menghapus ${successCount} kode.`);
+        }
+    };
 
     useEffect(() => {
         fetchCodes();
@@ -243,18 +302,20 @@ export default function AdminCodesPage() {
         });
     };
 
-    // Download Kode Akses as Excel
+    // Download Kode Akses as Excel (follows filter)
     const downloadCodesExcel = () => {
-        const activeCodes = codes.filter(c => c.is_active);
+        // Use filteredCodes instead of all codes to follow company filter
+        const activeCodes = filteredCodes.filter(c => c.is_active);
         
         // Create worksheet data
         const wsData = [
-            ['No', 'Kode', 'Nama Kandidat', 'Ujian', 'Status', 'Dibuat', 'Kedaluwarsa', 'Email'],
+            ['No', 'Kode', 'Nama Kandidat', 'Ujian', 'Perusahaan', 'Status', 'Dibuat', 'Kedaluwarsa', 'Email'],
             ...activeCodes.map((c, idx) => [
                 idx + 1,
                 c.code,
                 c.candidate_name || '-',
                 c.exam_title || 'Semua Ujian',
+                c.company_name || '-',
                 c.used_at ? 'Terpakai' : 'Aktif',
                 formatDate(c.created_at),
                 c.expires_at ? formatDate(c.expires_at) : '-',
@@ -270,6 +331,7 @@ export default function AdminCodesPage() {
             { wch: 20 }, // Kode
             { wch: 25 }, // Nama Kandidat
             { wch: 20 }, // Ujian
+            { wch: 20 }, // Perusahaan
             { wch: 12 }, // Status
             { wch: 20 }, // Dibuat
             { wch: 20 }, // Kedaluwarsa
@@ -279,7 +341,10 @@ export default function AdminCodesPage() {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Daftar Kode Akses');
         
-        XLSX.writeFile(wb, `Daftar_Kode_Akses_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`);
+        const companyName = filterCompanyCode 
+            ? companyCodes.find(c => c.code === filterCompanyCode)?.company_name || filterCompanyCode
+            : 'Semua';
+        XLSX.writeFile(wb, `Daftar_Kode_Akses_${companyName}_${new Date().toLocaleDateString('id-ID').replace(/\//g, '-')}.xlsx`);
     };
 
     const downloadCodesCSV = () => {
@@ -513,33 +578,55 @@ export default function AdminCodesPage() {
                 {/* Codes Table */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Company Code Filter - TOP LEVEL */}
-                    {companyCodes.length > 0 && (
-                        <div className="px-6 py-3 border-b border-blue-100 bg-blue-50 flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-blue-800">Filter Perusahaan:</span>
-                                <select
-                                    value={filterCompanyCode}
-                                    onChange={(e) => setFilterCompanyCode(e.target.value)}
-                                    className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="">Semua Perusahaan</option>
-                                    {companyCodes.map((cc) => (
-                                        <option key={cc.id} value={cc.code}>
-                                            {cc.company_name} ({cc.code})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            {filterCompanyCode && (
+                    <div className="px-6 py-3 border-b border-blue-100 bg-blue-50 flex flex-wrap items-center gap-3">
+                        <Building2 size={18} className="text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">Filter Perusahaan:</span>
+                        <select
+                            value={filterCompanyCode}
+                            onChange={(e) => {
+                                setFilterCompanyCode(e.target.value);
+                                setSelectedIds(new Set()); // Reset selection when filter changes
+                            }}
+                            className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Semua Perusahaan ({codes.length})</option>
+                            {companyCodes.map((cc) => {
+                                const count = codes.filter(c => c.company_code === cc.code).length;
+                                return (
+                                    <option key={cc.id} value={cc.code}>
+                                        {cc.company_name} ({cc.code}) - {count} kode
+                                    </option>
+                                );
+                            })}
+                        </select>
+                        {filterCompanyCode && (
+                            <button
+                                onClick={() => {
+                                    setFilterCompanyCode('');
+                                    setSelectedIds(new Set());
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                                Reset Filter
+                            </button>
+                        )}
+                        {/* Bulk actions */}
+                        {selectedIds.size > 0 && (
+                            <div className="ml-auto flex items-center gap-2">
+                                <span className="text-sm text-blue-700 font-medium">
+                                    {selectedIds.size} dipilih
+                                </span>
                                 <button
-                                    onClick={() => setFilterCompanyCode('')}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    onClick={bulkDeleteCodes}
+                                    disabled={bulkDeleting}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50"
                                 >
-                                    Reset Filter
+                                    <Trash2 size={14} />
+                                    {bulkDeleting ? 'Menghapus...' : 'Hapus Terpilih'}
                                 </button>
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                     
                     <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <h3 className="font-semibold text-gray-700">Daftar Kode Akses</h3>
@@ -585,9 +672,23 @@ export default function AdminCodesPage() {
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
+                                        <th className="px-4 py-3 font-medium w-10">
+                                            <button
+                                                onClick={selectAll}
+                                                className="text-gray-500 hover:text-blue-600"
+                                                title={selectedIds.size === filteredCodes.length ? "Hapus semua pilihan" : "Pilih semua"}
+                                            >
+                                                {selectedIds.size === filteredCodes.length && filteredCodes.length > 0 ? (
+                                                    <CheckSquare size={18} className="text-blue-600" />
+                                                ) : (
+                                                    <Square size={18} />
+                                                )}
+                                            </button>
+                                        </th>
                                         <th className="px-6 py-3 font-medium">Kode</th>
                                         <th className="px-6 py-3 font-medium">Kandidat</th>
                                         <th className="px-6 py-3 font-medium">Ujian</th>
+                                        <th className="px-6 py-3 font-medium">Perusahaan</th>
                                         <th className="px-6 py-3 font-medium">Status</th>
                                         <th className="px-6 py-3 font-medium">Dibuat</th>
                                         <th className="px-6 py-3 font-medium text-right">Aksi</th>
@@ -595,7 +696,19 @@ export default function AdminCodesPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredCodes.map((code) => (
-                                        <tr key={code.id} className="hover:bg-gray-50">
+                                        <tr key={code.id} className={`hover:bg-gray-50 ${selectedIds.has(code.id) ? 'bg-blue-50' : ''}`}>
+                                            <td className="px-4 py-4">
+                                                <button
+                                                    onClick={() => toggleSelection(code.id)}
+                                                    className="text-gray-500 hover:text-blue-600"
+                                                >
+                                                    {selectedIds.has(code.id) ? (
+                                                        <CheckSquare size={18} className="text-blue-600" />
+                                                    ) : (
+                                                        <Square size={18} />
+                                                    )}
+                                                </button>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <code className="bg-gray-100 px-3 py-1 rounded-lg font-mono text-sm text-gray-900">
@@ -622,6 +735,15 @@ export default function AdminCodesPage() {
                                             </td>
                                             <td className="px-6 py-4 text-gray-900">
                                                 {code.exam_title || 'Semua Ujian'}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {code.company_name ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                        {code.company_name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400">-</span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {code.used_at ? (

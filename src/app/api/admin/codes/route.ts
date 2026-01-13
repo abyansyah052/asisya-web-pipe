@@ -19,16 +19,20 @@ export async function GET() {
         try {
             // ✅ Only show active codes (soft delete filter)
             // Check both 'name' and 'candidate_name' in metadata for compatibility
+            // Include company_code from company_codes table
             const query = `
                 SELECT cc.id, cc.code, cc.created_at, cc.expires_at, cc.used_at,
                        cc.is_active, cc.current_uses, cc.max_uses,
                        COALESCE(cc.metadata->>'candidate_name', cc.metadata->>'name') as candidate_name,
                        e.title as exam_title,
                        u.id as used_by_user_id,
-                       u.email as used_by_email
+                       u.email as used_by_email,
+                       company.code as company_code,
+                       company.company_name as company_name
                 FROM candidate_codes cc
                 LEFT JOIN exams e ON cc.exam_id = e.id
                 LEFT JOIN users u ON cc.candidate_id = u.id
+                LEFT JOIN company_codes company ON cc.company_code_id = company.id
                 WHERE cc.is_active = true
                 ORDER BY cc.created_at DESC
             `;
