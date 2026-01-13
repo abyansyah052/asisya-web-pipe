@@ -1,0 +1,5 @@
+{
+    "codeAssist": {
+        "respectGitIgnore": false
+    }
+}
