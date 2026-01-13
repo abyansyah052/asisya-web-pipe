@@ -55,16 +55,16 @@ export function calculatePSSScore(answers: number[]): PSSResult {
 
     if (totalScore <= 13) {
         level = 'ringan';
-        levelLabel = 'Stress Ringan';
-        description = 'Tingkat stress yang dialami tergolong ringan. Individu mampu mengelola tekanan dengan baik.';
+        levelLabel = 'Stres Ringan';
+        description = 'Tingkat stres yang dialami tergolong ringan. Individu mampu mengelola tekanan dengan baik.';
     } else if (totalScore <= 26) {
         level = 'sedang';
-        levelLabel = 'Stress Sedang';
-        description = 'Tingkat stress yang dialami tergolong sedang. Disarankan untuk melakukan teknik relaksasi dan manajemen stress.';
+        levelLabel = 'Stres Sedang';
+        description = 'Tingkat stres yang dialami tergolong sedang. Disarankan untuk melakukan teknik relaksasi dan manajemen stres.';
     } else {
         level = 'berat';
-        levelLabel = 'Stress Berat';
-        description = 'Tingkat stress yang dialami tergolong berat. Sangat disarankan untuk berkonsultasi dengan profesional kesehatan mental.';
+        levelLabel = 'Stres Berat';
+        description = 'Tingkat stres yang dialami tergolong berat. Sangat disarankan untuk berkonsultasi dengan profesional kesehatan mental.';
     }
 
     return {

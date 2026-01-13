@@ -2,7 +2,44 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, X, Grid3X3 } from 'lucide-react';
+import { Clock, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, X, Grid3X3, HelpCircle } from 'lucide-react';
+
+// Petunjuk untuk setiap tipe ujian
+const EXAM_INSTRUCTIONS: Record<string, string> = {
+    pss: `Petunjuk Pengisian:
+
+1. Bacalah pertanyaan dan pernyataan berikut dengan baik
+2. Anda diperbolehkan bertanya kepada peneliti jika ada pertanyaan/pernyataan yang tidak dimengerti
+3. Berikan tanda centang pada salah satu pilihan jawaban yang paling sesuai dengan perasaan dan pikiran Anda selama SATU BULAN TERAKHIR
+
+Keterangan Pilihan Jawaban:
+• 0 : Tidak pernah
+• 1 : Hampir tidak pernah (1-2 kali)
+• 2 : Kadang-kadang (3-4 kali)
+• 3 : Hampir sering (5-6 kali)
+• 4 : Sangat sering (lebih dari 6 kali)`,
+    srq29: `Bacalah petunjuk ini seluruhnya sebelum mulai mengisi.
+
+Pertanyaan berikut berhubungan dengan masalah yang mungkin mengganggu Anda selama 30 hari terakhir.
+
+• Apabila Anda menganggap pertanyaan itu Anda alami dalam 30 hari terakhir, berilah jawaban YA
+• Apabila Anda menganggap pertanyaan itu TIDAK Anda alami dalam 30 hari terakhir, berilah jawaban TIDAK
+• Jika Anda tidak yakin dengan jawabannya, berilah jawaban yang paling sesuai
+
+Kami tegaskan bahwa jawaban Anda bersifat RAHASIA dan akan digunakan hanya untuk membantu pemecahan masalah Anda.`,
+    mmpi: `Petunjuk Pengisian:
+
+1. Di hadapan Anda akan disajikan pernyataan yang harus Anda jawab
+2. Bacalah setiap pernyataan dengan cermat
+3. Jawablah setiap pernyataan dengan memilih: YA atau TIDAK
+4. Tidak ada jawaban yang benar atau salah
+5. Jawablah sesuai dengan kondisi diri Anda yang sebenarnya`,
+    general: `Petunjuk Pengisian:
+
+1. Bacalah setiap soal dengan cermat
+2. Pilih jawaban yang paling tepat
+3. Pastikan semua soal terjawab sebelum mengumpulkan`
+};
 
 interface Option {
     id: number;
@@ -37,6 +74,7 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
     const [examStarted, setExamStarted] = useState(false);
     const [displayMode, setDisplayMode] = useState<DisplayMode>('per_page');
     const [showNavigator, setShowNavigator] = useState(false);
+    const [showInstructions, setShowInstructions] = useState(false);
     const [requireAllAnswers, setRequireAllAnswers] = useState(false);
     const intervalRef = useRef<NodeJS.Timeout>(undefined);
     const questionRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
@@ -383,6 +421,31 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                 </div>
             )}
 
+            {/* Instructions Modal */}
+            {showInstructions && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowInstructions(false)}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[70vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-[#071F56] to-[#0993A9] text-white">
+                            <h3 className="font-bold flex items-center gap-2">
+                                <HelpCircle size={20} />
+                                Petunjuk Pengerjaan
+                            </h3>
+                            <button onClick={() => setShowInstructions(false)} className="p-1.5 hover:bg-white/20 rounded-lg"><X size={18} /></button>
+                        </div>
+                        <div className="p-4 overflow-auto max-h-[50vh]">
+                            <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
+                                {EXAM_INSTRUCTIONS[examType] || EXAM_INSTRUCTIONS.general}
+                            </pre>
+                        </div>
+                        <div className="p-4 border-t bg-slate-50">
+                            <button onClick={() => setShowInstructions(false)} className="w-full py-2.5 bg-[#0993A9] text-white rounded-xl font-semibold hover:bg-[#0ba8c2]">
+                                Mengerti
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#E6FBFB] to-slate-50">
                 {/* Header - Fixed */}
                 <header className="bg-white border-b px-3 sm:px-6 py-2 sm:py-3 flex justify-between items-center h-14 sm:h-16 fixed w-full z-30 shadow-sm">
@@ -392,10 +455,20 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                             {Object.keys(answers).length}/{questions.length} terjawab
                         </div>
                     </div>
-                    <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-[#0993A9]/10 text-[#0993A9]'}`}>
-                        <Clock size={16} className="sm:hidden" />
-                        <Clock size={20} className="hidden sm:block" />
-                        {formatTime(timeLeft)}
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => setShowInstructions(true)}
+                            className="p-2 sm:p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-[#0993A9] transition-colors"
+                            title="Lihat Petunjuk"
+                        >
+                            <HelpCircle size={18} className="sm:hidden" />
+                            <HelpCircle size={20} className="hidden sm:block" />
+                        </button>
+                        <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-[#0993A9]/10 text-[#0993A9]'}`}>
+                            <Clock size={16} className="sm:hidden" />
+                            <Clock size={20} className="hidden sm:block" />
+                            {formatTime(timeLeft)}
+                        </div>
                     </div>
                 </header>
 
