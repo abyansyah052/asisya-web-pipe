@@ -44,7 +44,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
     useEffect(() => {
         const fetchCompanyCodes = async () => {
             try {
-                const res = await fetch('/api/admin/company-codes');
+                const res = await fetch('/api/psychologist/company-codes');
                 if (res.ok) {
                     const data = await res.json();
                     setCompanyCodes(data);
