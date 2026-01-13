@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Filter, Download, Clock, Search } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Filter, Download, Clock, Search, Trash2, Building2, CheckSquare, Square } from 'lucide-react';
+
+interface CompanyCode {
+    id: number;
+    code: string;
+    company_name: string;
+}
 
 export default function PsychologistExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -16,6 +22,14 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
     const [examId, setExamId] = useState<string>('');
     const [downloading, setDownloading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    // Company code filter
+    const [companyCodes, setCompanyCodes] = useState<CompanyCode[]>([]);
+    const [selectedCompanyCode, setSelectedCompanyCode] = useState<string>('');
+    // Selection state for bulk delete
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
+    const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<{show: boolean; attemptId: number | null; studentName: string}>({show: false, attemptId: null, studentName: ''});
     
     // Tab state: 'assigned' or 'all'
     const [viewMode, setViewMode] = useState<'assigned' | 'all'>('assigned');
@@ -25,6 +39,22 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
     useEffect(() => {
         params.then(p => setExamId(p.id));
     }, [params]);
+
+    // Fetch company codes for filter
+    useEffect(() => {
+        const fetchCompanyCodes = async () => {
+            try {
+                const res = await fetch('/api/admin/company-codes');
+                if (res.ok) {
+                    const data = await res.json();
+                    setCompanyCodes(data);
+                }
+            } catch (e) {
+                // Silent fail for company codes
+            }
+        };
+        fetchCompanyCodes();
+    }, []);
 
     useEffect(() => {
         if (!examId) return;
@@ -64,11 +94,16 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         fetchResults();
     }, [examId, router, includeInProgress]); // Remove viewMode dependency - always fetch all
 
-    // Filter results based on viewMode, psychologist selection, and search
+    // Filter results based on viewMode, psychologist selection, company code, and search
     const displayedResults = useMemo(() => {
         let filtered = results;
         
-        // First filter by viewMode (assigned vs all)
+        // Filter by company code (top-level filter)
+        if (selectedCompanyCode) {
+            filtered = filtered.filter(r => r.company_code === selectedCompanyCode);
+        }
+        
+        // Then filter by viewMode (assigned vs all)
         if (viewMode === 'assigned' && assignedCandidates.length > 0) {
             filtered = filtered.filter(r => assignedCandidates.includes(r.user_id));
         }
@@ -92,7 +127,98 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
         }
         
         return filtered;
-    }, [results, viewMode, assignedCandidates, selectedFilter, psychologistList, searchQuery]);
+    }, [results, viewMode, assignedCandidates, selectedFilter, psychologistList, searchQuery, selectedCompanyCode]);
+
+    // Check if this is an MMPI exam
+    const isMMPI = useMemo(() => {
+        return exam?.title?.toUpperCase().includes('MMPI') || exam?.exam_type === 'mmpi';
+    }, [exam]);
+
+    // Delete exam result handler
+    const handleDeleteResult = async (attemptId: number) => {
+        setDeleteLoading(attemptId);
+        try {
+            const res = await fetch(`/api/admin/exams/results/${attemptId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setResults(prev => prev.filter(r => r.id !== attemptId));
+                setShowDeleteConfirm({show: false, attemptId: null, studentName: ''});
+                setSelectedIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(attemptId);
+                    return newSet;
+                });
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Gagal menghapus hasil ujian');
+            }
+        } catch (_e) {
+            alert('Terjadi kesalahan saat menghapus');
+        } finally {
+            setDeleteLoading(null);
+        }
+    };
+
+    // Toggle selection
+    const toggleSelection = (id: number) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    // Select all visible results (only those with id, excluding 'waiting' entries)
+    const selectAll = () => {
+        const selectableResults = displayedResults.filter(r => r.id);
+        if (selectedIds.size === selectableResults.length && selectableResults.length > 0) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(selectableResults.map(r => r.id)));
+        }
+    };
+
+    // Bulk delete selected results
+    const bulkDeleteResults = async () => {
+        if (selectedIds.size === 0) return;
+        
+        const confirmMsg = `Yakin ingin menghapus ${selectedIds.size} hasil ujian yang dipilih?`;
+        if (!confirm(confirmMsg)) return;
+
+        setBulkDeleting(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const id of selectedIds) {
+            try {
+                const res = await fetch(`/api/admin/exams/results/${id}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    successCount++;
+                } else {
+                    failCount++;
+                }
+            } catch {
+                failCount++;
+            }
+        }
+
+        setBulkDeleting(false);
+        setSelectedIds(new Set());
+        
+        // Refresh results
+        setResults(prev => prev.filter(r => !selectedIds.has(r.id)));
+        
+        if (failCount > 0) {
+            alert(`Berhasil hapus ${successCount} hasil, gagal ${failCount} hasil.`);
+        } else {
+            alert(`Berhasil menghapus ${successCount} hasil ujian.`);
+        }
+    };
 
     // Download Excel function
     const handleDownload = async (filterType: 'all' | 'assigned' | 'current') => {
@@ -106,6 +232,11 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                 url = `/api/admin/exams/${examId}/download?filter=assigned&psychologistId=${selectedFilter}`;
             }
             
+            // Add company code filter to download URL
+            if (selectedCompanyCode) {
+                url += `&companyCode=${selectedCompanyCode}`;
+            }
+            
             const response = await fetch(url);
             if (response.ok) {
                 const blob = await response.blob();
@@ -114,12 +245,16 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                 a.href = downloadUrl;
                 
                 let filename = `Hasil_${exam?.title || 'Ujian'}`;
+                if (selectedCompanyCode) {
+                    const companyName = companyCodes.find(c => c.code === selectedCompanyCode)?.company_name || selectedCompanyCode;
+                    filename += `_${companyName}`;
+                }
                 if (filterType === 'assigned') {
                     filename += '_Bagian_Saya';
                 } else if (filterType === 'current' && selectedFilter !== 'all') {
                     const psych = psychologistList.find(p => p.admin_id === selectedFilter);
                     filename += `_${psych?.admin_name || 'Psikolog'}`;
-                } else {
+                } else if (!selectedCompanyCode) {
                     filename += '_Semua';
                 }
                 filename += '.xlsx';
@@ -251,8 +386,62 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                     </div>
                 </div>
 
-                {/* Search + Psychologist Filter */}
+                {/* Search + Company Code + Psychologist Filter */}
                 <div className="mb-6 flex flex-col gap-4">
+                    {/* Company Code Filter - TOP LEVEL */}
+                    {companyCodes.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                            <Building2 size={18} className="text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">Perusahaan:</span>
+                            <select
+                                value={selectedCompanyCode}
+                                onChange={(e) => {
+                                    setSelectedCompanyCode(e.target.value);
+                                    setSelectedFilter('all'); // Reset psychologist filter when company changes
+                                    setSelectedIds(new Set()); // Reset selection
+                                }}
+                                className="flex-1 sm:flex-none sm:w-64 px-3 py-2 border border-blue-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Semua Perusahaan ({results.length})</option>
+                                {companyCodes.map((cc) => {
+                                    const count = results.filter(r => r.company_code === cc.code).length;
+                                    return (
+                                        <option key={cc.id} value={cc.code}>
+                                            {cc.company_name} ({cc.code}) - {count} hasil
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            {selectedCompanyCode && (
+                                <button
+                                    onClick={() => {
+                                        setSelectedCompanyCode('');
+                                        setSelectedIds(new Set());
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                            {/* Bulk actions */}
+                            {selectedIds.size > 0 && (
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="text-sm text-blue-700 font-medium">
+                                        {selectedIds.size} dipilih
+                                    </span>
+                                    <button
+                                        onClick={bulkDeleteResults}
+                                        disabled={bulkDeleting}
+                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50"
+                                    >
+                                        <Trash2 size={14} />
+                                        {bulkDeleting ? 'Menghapus...' : 'Hapus Terpilih'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* Search Input */}
                     <div className="relative">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -311,24 +500,66 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                     )}
                 </div>
 
+                {/* Delete Confirmation Modal */}
+                {showDeleteConfirm.show && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+                            <h3 className="text-lg font-bold text-gray-800 mb-2">Konfirmasi Hapus</h3>
+                            <p className="text-gray-600 mb-4">
+                                Apakah Anda yakin ingin menghapus hasil ujian <strong>{showDeleteConfirm.studentName}</strong>?
+                                Tindakan ini tidak dapat dibatalkan.
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={() => setShowDeleteConfirm({show: false, attemptId: null, studentName: ''})}
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                                    disabled={deleteLoading !== null}
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={() => showDeleteConfirm.attemptId && handleDeleteResult(showDeleteConfirm.attemptId)}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors disabled:opacity-50"
+                                    disabled={deleteLoading !== null}
+                                >
+                                    {deleteLoading ? 'Menghapus...' : 'Ya, Hapus'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Desktop Table View */}
                     <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 text-sm">
+                                    <th className="px-4 py-3 font-medium w-10">
+                                        <button
+                                            onClick={selectAll}
+                                            className="text-gray-500 hover:text-blue-600"
+                                            title={selectedIds.size === displayedResults.filter(r => r.id).length ? "Hapus semua pilihan" : "Pilih semua"}
+                                        >
+                                            {selectedIds.size === displayedResults.filter(r => r.id).length && displayedResults.filter(r => r.id).length > 0 ? (
+                                                <CheckSquare size={18} className="text-blue-600" />
+                                            ) : (
+                                                <Square size={18} />
+                                            )}
+                                        </button>
+                                    </th>
                                     <th className="px-6 py-3 font-medium">Nama Peserta</th>
                                     <th className="px-6 py-3 font-medium">Waktu Selesai</th>
                                     <th className="px-6 py-3 font-medium text-center">Nilai</th>
-                                    <th className="px-6 py-3 font-medium text-center">Benar</th>
-                                    <th className="px-6 py-3 font-medium text-center">Salah</th>
+                                    <th className="px-6 py-3 font-medium text-center">{isMMPI ? 'YA' : 'Benar'}</th>
+                                    <th className="px-6 py-3 font-medium text-center">{isMMPI ? 'TIDAK' : 'Salah'}</th>
                                     <th className="px-6 py-3 font-medium text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {displayedResults.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500 text-sm">
+                                        <td colSpan={7} className="px-6 py-8 text-center text-gray-500 text-sm">
                                             {selectedFilter !== 'all'
                                                 ? 'Belum ada kandidat dari psikolog ini yang menyelesaikan ujian.'
                                                 : 'Belum ada peserta yang menyelesaikan ujian ini.'
@@ -336,7 +567,23 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                         </td>
                                     </tr>
                                 ) : displayedResults.map((res: any) => (
-                                    <tr key={res.id || res.user_id} className={`hover:bg-gray-50 ${!res.id ? 'bg-gray-50/50' : ''}`}>
+                                    <tr key={res.id || res.user_id} className={`hover:bg-gray-50 ${!res.id ? 'bg-gray-50/50' : ''} ${selectedIds.has(res.id) ? 'bg-blue-50' : ''}`}>
+                                        <td className="px-4 py-4">
+                                            {res.id ? (
+                                                <button
+                                                    onClick={() => toggleSelection(res.id)}
+                                                    className="text-gray-500 hover:text-blue-600"
+                                                >
+                                                    {selectedIds.has(res.id) ? (
+                                                        <CheckSquare size={18} className="text-blue-600" />
+                                                    ) : (
+                                                        <Square size={18} />
+                                                    )}
+                                                </button>
+                                            ) : (
+                                                <span className="text-gray-300">-</span>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 font-medium text-gray-800">
                                             <div className="flex items-center gap-2">
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -423,6 +670,13 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                                     >
                                                         <UserCircle size={14} />
                                                         Data Diri
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setShowDeleteConfirm({show: true, attemptId: res.id, studentName: res.student})}
+                                                        className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg text-xs font-medium transition-colors w-full justify-center"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        Hapus
                                                     </button>
                                                 </div>
                                             ) : (
@@ -516,7 +770,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                 {res.id ? (
                                     <>
                                         {/* Benar/Salah removed for performance - see detail view */}
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                             <button
                                                 onClick={() => router.push(`/psychologist/exams/${examId}/answers/${res.id}`)}
                                                 className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-100 active:bg-blue-200 text-blue-800 rounded-lg text-xs font-medium touch-manipulation"
@@ -530,6 +784,13 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                             >
                                                 <UserCircle size={14} />
                                                 Data Diri
+                                            </button>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm({show: true, attemptId: res.id, studentName: res.student})}
+                                                className="flex items-center justify-center gap-1 px-3 py-2 bg-red-100 active:bg-red-200 text-red-800 rounded-lg text-xs font-medium touch-manipulation"
+                                            >
+                                                <Trash2 size={14} />
+                                                Hapus
                                             </button>
                                         </div>
                                     </>

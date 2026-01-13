@@ -103,6 +103,11 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
         return filtered;
     }, [results, selectedCompanyCode, selectedAdminId, adminList, searchQuery]);
 
+    // Check if this is an MMPI exam
+    const isMMPI = useMemo(() => {
+        return exam?.title?.toUpperCase().includes('MMPI') || exam?.exam_type === 'mmpi';
+    }, [exam]);
+
     // Delete exam result handler
     const handleDeleteResult = async (attemptId: number) => {
         setDeleteLoading(attemptId);
@@ -480,8 +485,8 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     <th className="px-6 py-3 font-medium">Nama Peserta</th>
                                     <th className="px-6 py-3 font-medium">Waktu Selesai</th>
                                     <th className="px-6 py-3 font-medium text-center">Nilai</th>
-                                    <th className="px-6 py-3 font-medium text-center">Benar</th>
-                                    <th className="px-6 py-3 font-medium text-center">Salah</th>
+                                    <th className="px-6 py-3 font-medium text-center">{isMMPI ? 'YA' : 'Benar'}</th>
+                                    <th className="px-6 py-3 font-medium text-center">{isMMPI ? 'TIDAK' : 'Salah'}</th>
                                     <th className="px-6 py-3 font-medium text-center">Aksi</th>
                                 </tr>
                             </thead>
