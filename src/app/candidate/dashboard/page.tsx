@@ -265,7 +265,7 @@ export default function CandidateDashboard() {
                 <div className="px-3 sm:px-4 md:px-8 lg:px-40 flex h-14 sm:h-16 items-center justify-between max-w-[1440px] mx-auto">
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-900 min-w-0">
                         <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-10 sm:h-14 w-auto shrink-0" />
-                        <h2 className="text-xs sm:text-base font-bold tracking-tight truncate text-[#071F56]">Kimia Farma Assessment</h2>
+                        <h2 className="text-xs sm:text-base font-bold tracking-tight truncate text-[#071F56]">Kimia Farma Mental Health Test</h2>
                     </div>
                     <button
                         onClick={handleLogout}
@@ -482,7 +482,7 @@ export default function CandidateDashboard() {
             {/* Footer - Kimia Farma */}
             <footer className="mt-auto border-t border-[#0993A9]/20 bg-white py-4 sm:py-6">
                 <div className="px-3 sm:px-4 md:px-8 lg:px-40 max-w-[1440px] mx-auto flex flex-col items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm text-slate-500">
-                    <p className="text-center">© 2025 Kimia Farma Assessment Platform. Powered by Asisya.</p>
+                    <p className="text-center">© 2025 Kimia Farma Mental Health Test Platform. Powered by Asisya.</p>
                     <div className="flex gap-4 sm:gap-6">
                         <a className="hover:text-[#0993A9] transition-colors" href="#">Bantuan</a>
                         <a className="hover:text-[#0993A9] transition-colors" href="#">Privasi</a>

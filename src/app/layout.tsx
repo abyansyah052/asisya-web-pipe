@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kimia Farma Assessment",
-  description: "Kimia Farma Assessment - Sistem Asesmen Psikologi",
+  title: "Kimia Farma Mental Health Test",
+  description: "Kimia Farma Mental Health Test - Sistem Asesmen Psikologi",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

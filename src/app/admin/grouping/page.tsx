@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Users, UserCog, Shuffle, Save, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Users, UserCog, Shuffle, Save, RefreshCw, Search, Building2 } from 'lucide-react';
 
 interface Exam {
     id: number;
@@ -29,6 +29,12 @@ interface AssignmentInput {
     count: number;
 }
 
+interface CompanyCode {
+    id: number;
+    code: string;
+    company_name: string;
+}
+
 export default function GroupingPage() {
     const router = useRouter();
     const [exams, setExams] = useState<Exam[]>([]);
@@ -38,6 +44,9 @@ export default function GroupingPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    // Company code filter
+    const [companyCodes, setCompanyCodes] = useState<CompanyCode[]>([]);
+    const [filterCompanyCode, setFilterCompanyCode] = useState<string>('');
 
     // Auto-assign inputs
     const [assignmentInputs, setAssignmentInputs] = useState<AssignmentInput[]>([]);
@@ -46,6 +55,7 @@ export default function GroupingPage() {
     useEffect(() => {
         fetchExams();
         fetchPsychologists();
+        fetchCompanyCodes();
     }, []);
 
     useEffect(() => {
@@ -53,6 +63,18 @@ export default function GroupingPage() {
             fetchCandidates(selectedExam);
         }
     }, [selectedExam]);
+
+    const fetchCompanyCodes = async () => {
+        try {
+            const res = await fetch('/api/admin/company-codes');
+            if (res.ok) {
+                const data = await res.json();
+                setCompanyCodes(data);
+            }
+        } catch (_err) {
+            // Silent fail
+        }
+    };
 
     const fetchExams = async () => {
         try {
@@ -69,7 +91,7 @@ export default function GroupingPage() {
                 }
             }
         } catch (err) {
-            console.error(err);
+            // Silent fail
         } finally {
             setLoading(false);
         }
@@ -87,8 +109,8 @@ export default function GroupingPage() {
                     count: 0
                 })));
             }
-        } catch (err) {
-            console.error(err);
+        } catch (_err) {
+            // Silent fail
         }
     };
 
@@ -215,15 +237,29 @@ export default function GroupingPage() {
 
     const unassignedCount = candidates.filter(c => !c.assigned_to).length;
 
-    // Filter candidates based on search query
+    // Filter candidates based on company code and search query
     const filteredCandidates = useMemo(() => {
-        if (!searchQuery.trim()) return candidates;
-        const query = searchQuery.toLowerCase().trim();
-        return candidates.filter(c => 
-            (c.full_name?.toLowerCase().includes(query)) ||
-            (c.username.toLowerCase().includes(query))
-        );
-    }, [candidates, searchQuery]);
+        let filtered = candidates;
+        
+        // Filter by company code first (top level filter)
+        if (filterCompanyCode) {
+            filtered = filtered.filter(c => {
+                // company_code should be available from API
+                return (c as any).company_code === filterCompanyCode;
+            });
+        }
+        
+        // Then filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(c => 
+                (c.full_name?.toLowerCase().includes(query)) ||
+                (c.username.toLowerCase().includes(query))
+            );
+        }
+        
+        return filtered;
+    }, [candidates, filterCompanyCode, searchQuery]);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -348,14 +384,42 @@ export default function GroupingPage() {
 
                         {/* Candidates Panel */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            {/* Company Code Filter - TOP LEVEL */}
+                            {companyCodes.length > 0 && (
+                                <div className="px-6 py-3 border-b border-blue-100 bg-blue-50 flex flex-wrap items-center gap-3">
+                                    <Building2 size={18} className="text-blue-600" />
+                                    <span className="text-sm font-medium text-blue-800">Perusahaan:</span>
+                                    <select
+                                        value={filterCompanyCode}
+                                        onChange={(e) => setFilterCompanyCode(e.target.value)}
+                                        className="flex-1 sm:flex-none sm:w-48 px-3 py-1.5 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">Semua</option>
+                                        {companyCodes.map((cc) => (
+                                            <option key={cc.id} value={cc.code}>
+                                                {cc.company_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {filterCompanyCode && (
+                                        <button
+                                            onClick={() => setFilterCompanyCode('')}
+                                            className="text-blue-600 hover:text-blue-800 text-sm"
+                                        >
+                                            Reset
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                            
                             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
                                 <div className="flex justify-between items-center mb-3">
                                     <h3 className="font-semibold text-gray-700 flex items-center gap-2">
                                         <Users size={20} />
-                                        Daftar Peserta ({candidates.length})
+                                        Daftar Peserta ({filteredCandidates.length})
                                     </h3>
                                     <span className="text-sm text-gray-500">
-                                        Belum di-assign: {unassignedCount}
+                                        Belum di-assign: {filteredCandidates.filter(c => !c.assigned_to).length}
                                     </span>
                                 </div>
                                 {/* Search Input */}

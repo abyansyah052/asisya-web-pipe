@@ -94,7 +94,7 @@ export default function ProfileCompletionPage() {
                 <div className="max-w-[1280px] mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-3 text-slate-900 min-w-0">
                         <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-8 sm:h-10 w-auto shrink-0" />
-                        <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate text-orange-600">Kimia Farma Assessment</h2>
+                        <h2 className="text-sm sm:text-lg font-bold tracking-tight truncate text-orange-600">Kimia Farma Mental Health Test</h2>
                     </div>
                     <button
                         onClick={handleLogout}

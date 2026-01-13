@@ -16,6 +16,7 @@ export async function GET(
         const { searchParams } = new URL(request.url);
         const filterType = searchParams.get('filter') || 'all'; // 'all' or 'assigned'
         const psychologistId = searchParams.get('psychologistId'); // Optional: filter by specific psychologist
+        const companyCodeFilter = searchParams.get('companyCode'); // Optional: filter by company code
 
         const cookieStore = await cookies();
         const sessionCookie = cookieStore.get('user_session');
@@ -52,6 +53,8 @@ export async function GET(
             // ✅ Use DISTINCT ON to only get the latest attempt per user
             // ✅ Include access code as nomor_peserta
             // ✅ Include PSS/SRQ results for Excel export
+            // ✅ Include company_code for filtering
+            // ✅ Exclude deleted attempts
             const attemptsRes = await client.query(
                 `SELECT DISTINCT ON (ea.user_id)
                     ea.id as attempt_id,
@@ -64,16 +67,23 @@ export async function GET(
                     ea.srq_conclusion,
                     COALESCE(up.full_name, u.full_name, u.username) as full_name,
                     u.username,
-                    cc.code as nomor_peserta
+                    cc.code as nomor_peserta,
+                    company.code as company_code
                 FROM exam_attempts ea
                 JOIN users u ON ea.user_id = u.id
                 LEFT JOIN user_profiles up ON u.id = up.user_id
                 LEFT JOIN candidate_codes cc ON cc.candidate_id = u.id
+                LEFT JOIN company_codes company ON cc.company_code_id = company.id
                 WHERE ea.exam_id = $1 AND ea.status = 'completed'
                 ORDER BY ea.user_id, ea.end_time DESC`,
                 [examId]
             );
             let attempts = attemptsRes.rows;
+
+            // Filter by company code if specified
+            if (companyCodeFilter) {
+                attempts = attempts.filter((a: any) => a.company_code === companyCodeFilter);
+            }
 
             // Filter by assignment if needed
             if (filterType === 'assigned' || psychologistId) {
@@ -271,6 +281,9 @@ export async function GET(
 
                 const answersData: any[][] = [answersHeaders];
 
+                // Determine if this is MMPI exam (use YA/TIDAK instead of benar/salah)
+                const isMMPI = examType === 'mmpi' || examTitle.toLowerCase().includes('mmpi');
+
                 attempts.forEach((attempt: any, index: number) => {
                     const profile = profilesMap[attempt.user_id] || {};
                     const answers = answersMap[attempt.attempt_id] || {};
@@ -281,11 +294,18 @@ export async function GET(
                         profile.gender || '-'
                     ];
 
-                    // Add answers for each question - show "benar" or "salah"
+                    // Add answers for each question
+                    // For MMPI: show "YA" or "TIDAK" (following MMPI options)
+                    // For others: show "benar" or "salah"
                     questionIds.forEach((qId: number) => {
                         const answerData = answers[qId];
                         if (answerData) {
-                            row.push(answerData.is_correct ? 'benar' : 'salah');
+                            if (isMMPI) {
+                                // MMPI uses YA/TIDAK format
+                                row.push(answerData.is_correct ? 'YA' : 'TIDAK');
+                            } else {
+                                row.push(answerData.is_correct ? 'benar' : 'salah');
+                            }
                         } else {
                             row.push(''); // Not answered
                         }

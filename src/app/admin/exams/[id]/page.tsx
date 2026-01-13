@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download, Search } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, XCircle, Users, FileText, UserCircle, Download, Search, Trash2, Building2 } from 'lucide-react';
+
+interface CompanyCode {
+    id: number;
+    code: string;
+    company_name: string;
+}
 
 export default function ExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -16,10 +22,32 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
     const [examId, setExamId] = useState<string>('');
     const [downloading, setDownloading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    // Company code filter
+    const [companyCodes, setCompanyCodes] = useState<CompanyCode[]>([]);
+    const [selectedCompanyCode, setSelectedCompanyCode] = useState<string>('');
+    // Delete state
+    const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<{show: boolean; attemptId: number | null; studentName: string}>({show: false, attemptId: null, studentName: ''});
 
     useEffect(() => {
         params.then(p => setExamId(p.id));
     }, [params]);
+
+    // Fetch company codes for filter
+    useEffect(() => {
+        const fetchCompanyCodes = async () => {
+            try {
+                const res = await fetch('/api/admin/company-codes');
+                if (res.ok) {
+                    const data = await res.json();
+                    setCompanyCodes(data);
+                }
+            } catch (e) {
+                // Silent fail for company codes
+            }
+        };
+        fetchCompanyCodes();
+    }, []);
 
     useEffect(() => {
         if (!examId) return;
@@ -44,9 +72,14 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
         fetchResults();
     }, [examId]);
 
-    // Filter results based on selected admin and search
+    // Filter results based on company code, admin, and search
     const displayedResults = useMemo(() => {
         let filtered = results;
+        
+        // Filter by company code (top-level filter)
+        if (selectedCompanyCode) {
+            filtered = filtered.filter(r => r.company_code === selectedCompanyCode);
+        }
         
         // Filter by admin
         if (selectedAdminId !== null) {
@@ -65,7 +98,28 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
         }
         
         return filtered;
-    }, [results, selectedAdminId, adminList, searchQuery]);
+    }, [results, selectedCompanyCode, selectedAdminId, adminList, searchQuery]);
+
+    // Delete exam result handler
+    const handleDeleteResult = async (attemptId: number) => {
+        setDeleteLoading(attemptId);
+        try {
+            const res = await fetch(`/api/admin/exams/results/${attemptId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setResults(prev => prev.filter(r => r.id !== attemptId));
+                setShowDeleteConfirm({show: false, attemptId: null, studentName: ''});
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Gagal menghapus hasil ujian');
+            }
+        } catch (_e) {
+            alert('Terjadi kesalahan saat menghapus');
+        } finally {
+            setDeleteLoading(null);
+        }
+    };
 
     // Download Excel function
     const handleDownload = async (filterType: 'all' | 'assigned' | 'selected') => {
@@ -77,6 +131,11 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
             } else if (filterType === 'selected' && selectedAdminId !== null) {
                 url = `/api/admin/exams/${examId}/download?filter=assigned&psychologistId=${selectedAdminId}`;
             }
+            
+            // Add company code filter to download URL
+            if (selectedCompanyCode) {
+                url += `&companyCode=${selectedCompanyCode}`;
+            }
 
             const response = await fetch(url);
             if (response.ok) {
@@ -86,12 +145,16 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                 a.href = downloadUrl;
 
                 let filename = `Hasil_${exam?.title || 'Ujian'}`;
+                if (selectedCompanyCode) {
+                    const companyName = companyCodes.find(c => c.code === selectedCompanyCode)?.company_name || selectedCompanyCode;
+                    filename += `_${companyName}`;
+                }
                 if (filterType === 'assigned') {
                     filename += '_Bagian_Saya';
                 } else if (filterType === 'selected' && selectedAdminId !== null) {
                     const admin = adminList.find(a => a.admin_id === selectedAdminId);
                     filename += `_${admin?.admin_name || 'Admin'}`;
-                } else {
+                } else if (!selectedCompanyCode) {
                     filename += '_Semua';
                 }
                 filename += '.xlsx';
@@ -192,8 +255,39 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                     </div>
                 </div>
 
-                {/* Search + Admin Filter */}
+                {/* Search + Company Code + Admin Filter */}
                 <div className="mb-6 flex flex-col gap-4">
+                    {/* Company Code Filter - TOP LEVEL */}
+                    {companyCodes.length > 0 && (
+                        <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                            <Building2 size={18} className="text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">Perusahaan:</span>
+                            <select
+                                value={selectedCompanyCode}
+                                onChange={(e) => {
+                                    setSelectedCompanyCode(e.target.value);
+                                    setSelectedAdminId(null); // Reset admin filter when company changes
+                                }}
+                                className="flex-1 sm:flex-none sm:w-64 px-3 py-2 border border-blue-300 rounded-lg text-sm font-medium text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Semua Perusahaan</option>
+                                {companyCodes.map((cc) => (
+                                    <option key={cc.id} value={cc.code}>
+                                        {cc.company_name} ({cc.code})
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedCompanyCode && (
+                                <button
+                                    onClick={() => setSelectedCompanyCode('')}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    
                     {/* Search Input */}
                     <div className="relative">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -244,6 +338,35 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                         </div>
                     )}
                 </div>
+
+                {/* Delete Confirmation Modal */}
+                {showDeleteConfirm.show && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+                            <h3 className="text-lg font-bold text-gray-800 mb-2">Konfirmasi Hapus</h3>
+                            <p className="text-gray-600 mb-4">
+                                Apakah Anda yakin ingin menghapus hasil ujian <strong>{showDeleteConfirm.studentName}</strong>?
+                                Tindakan ini tidak dapat dibatalkan.
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={() => setShowDeleteConfirm({show: false, attemptId: null, studentName: ''})}
+                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors"
+                                    disabled={deleteLoading !== null}
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={() => showDeleteConfirm.attemptId && handleDeleteResult(showDeleteConfirm.attemptId)}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium transition-colors disabled:opacity-50"
+                                    disabled={deleteLoading !== null}
+                                >
+                                    {deleteLoading ? 'Menghapus...' : 'Ya, Hapus'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Desktop Table View */}
@@ -344,6 +467,14 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                                     <UserCircle size={14} />
                                                     Data Diri
                                                 </button>
+                                                <button
+                                                    onClick={() => setShowDeleteConfirm({show: true, attemptId: res.id, studentName: res.student || 'Kandidat'})}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-medium transition-colors w-full justify-center"
+                                                    disabled={deleteLoading === res.id}
+                                                >
+                                                    <Trash2 size={14} />
+                                                    {deleteLoading === res.id ? 'Menghapus...' : 'Hapus'}
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -402,7 +533,7 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
 
                                 {/* Correct/Incorrect counts removed for performance - available in detail view */}
 
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     <button
                                         onClick={() => router.push(`/admin/exams/${examId}/answers/${res.id}`)}
                                         className="flex items-center justify-center gap-1 px-3 py-2 bg-blue-100 active:bg-blue-200 text-blue-800 rounded-lg text-xs font-medium touch-manipulation"
@@ -416,6 +547,14 @@ export default function ExamResultsPage({ params }: { params: Promise<{ id: stri
                                     >
                                         <UserCircle size={14} />
                                         Data Diri
+                                    </button>
+                                    <button
+                                        onClick={() => setShowDeleteConfirm({show: true, attemptId: res.id, studentName: res.student || 'Kandidat'})}
+                                        className="flex items-center justify-center gap-1 px-3 py-2 bg-red-100 active:bg-red-200 text-red-700 rounded-lg text-xs font-medium touch-manipulation"
+                                        disabled={deleteLoading === res.id}
+                                    >
+                                        <Trash2 size={14} />
+                                        Hapus
                                     </button>
                                 </div>
                             </div>

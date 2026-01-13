@@ -60,18 +60,36 @@ export default function AdminCodesPage() {
     const [importUseLegacy, setImportUseLegacy] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    // Company code filter state
+    const [filterCompanyCode, setFilterCompanyCode] = useState<string>('');
 
-    // Filtered codes based on search
+    // Filtered codes based on company code and search
     const filteredCodes = useMemo(() => {
-        if (!searchQuery.trim()) return codes;
-        const query = searchQuery.toLowerCase().trim();
-        return codes.filter(c => 
-            c.code?.toLowerCase().includes(query) ||
-            c.candidate_name?.toLowerCase().includes(query) ||
-            c.used_by_email?.toLowerCase().includes(query) ||
-            c.exam_title?.toLowerCase().includes(query)
-        );
-    }, [codes, searchQuery]);
+        let filtered = codes;
+        
+        // First filter by company code
+        if (filterCompanyCode) {
+            filtered = filtered.filter(c => {
+                // Extract company code from the code string (format: MMYYXXXX-NNNN where XXXX is company code)
+                const codeMatch = c.code?.match(/^\d{4}(\d{4})-/);
+                const codeCompanyPart = codeMatch ? codeMatch[1] : null;
+                return codeCompanyPart === filterCompanyCode;
+            });
+        }
+        
+        // Then filter by search query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(c => 
+                c.code?.toLowerCase().includes(query) ||
+                c.candidate_name?.toLowerCase().includes(query) ||
+                c.used_by_email?.toLowerCase().includes(query) ||
+                c.exam_title?.toLowerCase().includes(query)
+            );
+        }
+        
+        return filtered;
+    }, [codes, filterCompanyCode, searchQuery]);
 
     useEffect(() => {
         fetchCodes();
@@ -494,6 +512,35 @@ export default function AdminCodesPage() {
 
                 {/* Codes Table */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Company Code Filter - TOP LEVEL */}
+                    {companyCodes.length > 0 && (
+                        <div className="px-6 py-3 border-b border-blue-100 bg-blue-50 flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-blue-800">Filter Perusahaan:</span>
+                                <select
+                                    value={filterCompanyCode}
+                                    onChange={(e) => setFilterCompanyCode(e.target.value)}
+                                    className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="">Semua Perusahaan</option>
+                                    {companyCodes.map((cc) => (
+                                        <option key={cc.id} value={cc.code}>
+                                            {cc.company_name} ({cc.code})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {filterCompanyCode && (
+                                <button
+                                    onClick={() => setFilterCompanyCode('')}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                    Reset Filter
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    
                     <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <h3 className="font-semibold text-gray-700">Daftar Kode Akses</h3>
                         <div className="relative w-full sm:w-72">

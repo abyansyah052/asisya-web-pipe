@@ -65,7 +65,7 @@ export default function CandidateLoginPage() {
           {/* Main Content - Top */}
           <div className="relative z-10 flex flex-col gap-4">
             <h1 className="text-3xl lg:text-4xl font-bold leading-tight tracking-tight">
-              Selamat Datang di<br />Portal Asesmen
+              Selamat Datang di<br />Portal Assessment
             </h1>
             <p className="text-white/80 text-base lg:text-lg font-light leading-relaxed max-w-md">
               Platform asesmen psikologi profesional untuk mengukur potensi dan kepribadian Anda secara komprehensif.
@@ -75,7 +75,7 @@ export default function CandidateLoginPage() {
           {/* Logo + Title + Portal Info - Bottom */}
           <div className="relative z-10 mt-2 pt-4 border-t border-white/20 flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-lg lg:text-xl font-semibold">Kimia Farma Assessment</span>
+              <span className="text-lg lg:text-xl font-semibold">Kimia Farma Mental Health Test</span>
               <div className="flex items-center gap-2 text-sm font-medium text-[#EF942A] mt-1">
                 <Users size={16} className="text-[#EF942A]" />
                 Portal Khusus Peserta
@@ -96,7 +96,7 @@ export default function CandidateLoginPage() {
             <div className="h-16 w-16 rounded-xl border border-[#0993A9]/30 flex items-center justify-center p-1 overflow-hidden shadow-sm">
               <img src="/kimia-farma-logo.jpg" alt="Kimia Farma" className="h-full w-full object-cover rounded-lg" />
             </div>
-            <h2 className="text-lg font-bold text-[#071F56]">Kimia Farma Assessment</h2>
+            <h2 className="text-lg font-bold text-[#071F56]">Kimia Farma Mental Health Test</h2>
           </div>
 
           <div className="mb-8">
@@ -164,7 +164,7 @@ export default function CandidateLoginPage() {
               Belum punya kode akses?{' '}
               <span className="text-[#0993A9] font-semibold">Hubungi Psikolog atau HRD Anda</span>
             </p>
-            <p className="text-slate-400 text-xs font-normal">© 2025 Kimia Farma Assessment. Powered by Asisya.</p>
+            <p className="text-slate-400 text-xs font-normal">© 2025 Kimia Farma Mental Health Test. Powered by Asisya.</p>
           </div>
         </div>
       </div>

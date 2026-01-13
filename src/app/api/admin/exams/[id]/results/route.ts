@@ -49,7 +49,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // ✅ Use COALESCE to get full_name from user_profiles if users.full_name is NULL
         // ✅ Use DISTINCT ON to only get the latest attempt per user
         // ✅ Include 'in_progress' status if includeInProgress is true (for viewing candidates who started but haven't finished)
-        const statusFilter = includeInProgress ? "AND ea.status IN ('completed', 'in_progress')" : "AND ea.status = 'completed'";
+        // ✅ Exclude 'deleted' status (soft deleted results)
+        // ✅ Include company_code from candidate_codes for filtering
+        const statusFilter = includeInProgress 
+            ? "AND ea.status IN ('completed', 'in_progress')" 
+            : "AND ea.status = 'completed'";
         
         const attemptsQuery = `
         SELECT DISTINCT ON (ea.user_id)
@@ -62,11 +66,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             ea.start_time,
             up.jenis_kelamin as gender,
             ea.pss_category,
-            ea.srq_conclusion
+            ea.srq_conclusion,
+            cc.code as company_code
         FROM exam_attempts ea
         JOIN users u ON ea.user_id = u.id
         LEFT JOIN user_profiles up ON u.id = up.user_id
-        WHERE ea.exam_id = $1 ${statusFilter}
+        LEFT JOIN candidate_codes ccode ON ccode.candidate_id = u.id
+        LEFT JOIN company_codes cc ON ccode.company_code_id = cc.id
+        WHERE ea.exam_id = $1 ${statusFilter} AND ea.status != 'deleted'
         ORDER BY ea.user_id, ea.end_time DESC NULLS LAST
       `;
 

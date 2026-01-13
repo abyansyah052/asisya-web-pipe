@@ -28,13 +28,16 @@ export async function GET(req: NextRequest) {
             // 2. Have attempted this exam
             // 3. Are assigned via candidate_groups (with assessor_id, NOT psychologist_id)
             // ✅ Use COALESCE to prefer user_profiles.full_name > users.full_name > username
+            // ✅ Include company_code for filtering
             const result = await client.query(
                 `SELECT DISTINCT u.id, u.username, 
                         COALESCE(up.full_name, u.full_name, u.username) as full_name,
-                        COALESCE(cg.assessor_id, NULL) as assigned_to
+                        COALESCE(cg.assessor_id, NULL) as assigned_to,
+                        company.code as company_code
                  FROM users u
                  LEFT JOIN user_profiles up ON up.user_id = u.id
                  LEFT JOIN candidate_codes cc ON cc.candidate_id = u.id AND cc.exam_id = $1
+                 LEFT JOIN company_codes company ON cc.company_code_id = company.id
                  LEFT JOIN exam_attempts et ON et.user_id = u.id AND et.exam_id = $1
                  LEFT JOIN candidate_groups cg ON cg.candidate_id = u.id AND cg.exam_id = $1
                  WHERE u.role = 'candidate'
