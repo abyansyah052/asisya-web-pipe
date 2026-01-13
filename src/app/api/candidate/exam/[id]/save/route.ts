@@ -25,9 +25,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const client = await pool.connect();
 
         try {
-            // ✅ SECURITY FIX: Verify attempt belongs to this user AND check time limit
+            // ✅ TIMEZONE FIX: Calculate elapsed time in PostgreSQL to avoid JS/DB timezone mismatch
             const attemptRes = await client.query(
-                `SELECT ea.id, ea.start_time, e.duration_minutes 
+                `SELECT ea.id, e.duration_minutes,
+                        EXTRACT(EPOCH FROM (NOW() - ea.start_time)) / 60 as elapsed_minutes
                  FROM exam_attempts ea
                  JOIN exams e ON ea.exam_id = e.id
                  WHERE ea.id = $1 AND ea.user_id = $2 AND ea.exam_id = $3 AND ea.status = $4`,
@@ -40,9 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             // ✅ SECURITY FIX: Validate time limit (add 60s grace period for network latency)
             const attempt = attemptRes.rows[0];
-            const startTime = new Date(attempt.start_time);
-            const now = new Date();
-            const elapsedMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
+            const elapsedMinutes = parseFloat(attempt.elapsed_minutes) || 0;
             const gracePeriodMinutes = 1; // 60 seconds grace period
             
             if (elapsedMinutes > attempt.duration_minutes + gracePeriodMinutes) {

@@ -456,13 +456,13 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button 
+                        <button
                             onClick={() => setShowInstructions(true)}
-                            className="p-2 sm:p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-[#0993A9] transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 hover:text-[#0993A9] transition-colors text-sm font-medium"
                             title="Lihat Petunjuk"
                         >
-                            <HelpCircle size={18} className="sm:hidden" />
-                            <HelpCircle size={20} className="hidden sm:block" />
+                            <HelpCircle size={16} />
+                            <span>Petunjuk</span>
                         </button>
                         <div className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-mono font-bold text-sm sm:text-xl flex items-center gap-1.5 sm:gap-2 ${timeLeft < 300 ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-[#0993A9]/10 text-[#0993A9]'}`}>
                             <Clock size={16} className="sm:hidden" />

@@ -578,16 +578,16 @@ export default function AdminCodesPage() {
                 {/* Codes Table */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Company Code Filter - TOP LEVEL */}
-                    <div className="px-6 py-3 border-b border-blue-100 bg-blue-50 flex flex-wrap items-center gap-3">
-                        <Building2 size={18} className="text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">Filter Perusahaan:</span>
+                    <div className="px-6 py-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center gap-3">
+                        <Building2 size={18} className="text-gray-600" />
+                        <span className="text-sm font-medium text-gray-700">Filter Perusahaan:</span>
                         <select
                             value={filterCompanyCode}
                             onChange={(e) => {
                                 setFilterCompanyCode(e.target.value);
                                 setSelectedIds(new Set()); // Reset selection when filter changes
                             }}
-                            className="px-3 py-1.5 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400"
                         >
                             <option value="">Semua Perusahaan ({codes.length})</option>
                             {companyCodes.map((cc) => {

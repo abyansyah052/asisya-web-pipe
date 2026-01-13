@@ -413,15 +413,25 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                 })}
                             </select>
                             {selectedCompanyCode && (
-                                <button
-                                    onClick={() => {
-                                        setSelectedCompanyCode('');
-                                        setSelectedIds(new Set());
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                >
-                                    Reset
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedCompanyCode('');
+                                            setSelectedIds(new Set());
+                                        }}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    >
+                                        Reset
+                                    </button>
+                                    <button
+                                        onClick={() => handleDownload('all')}
+                                        disabled={downloading}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 transition-colors"
+                                    >
+                                        <Download size={14} />
+                                        {downloading ? 'Mengunduh...' : 'Download'}
+                                    </button>
+                                </>
                             )}
                             {/* Bulk actions */}
                             {selectedIds.size > 0 && (
@@ -450,7 +460,7 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                             placeholder="Cari nama peserta..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400/60"
+                            className="w-full sm:w-80 pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
                         />
                         {searchQuery && (
                             <button
@@ -496,6 +506,29 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                     })}
                                 </select>
                             </div>
+                        </div>
+                    )}
+                    
+                    {/* Bulk Delete Action - Always visible when items selected */}
+                    {selectedIds.size > 0 && (
+                        <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl border border-red-200">
+                            <span className="text-sm text-red-700 font-medium">
+                                {selectedIds.size} hasil dipilih
+                            </span>
+                            <button
+                                onClick={bulkDeleteResults}
+                                disabled={bulkDeleting}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                                {bulkDeleting ? 'Menghapus...' : 'Hapus Terpilih'}
+                            </button>
+                            <button
+                                onClick={() => setSelectedIds(new Set())}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                                Batal
+                            </button>
                         </div>
                     )}
                 </div>
@@ -620,8 +653,10 @@ export default function PsychologistExamResultsPage({ params }: { params: Promis
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {/* Only show score in Nilai column - label is under name */}
-                                            {res.score !== null ? (
+                                            {/* Only show score in Nilai column - for MMPI show - */}
+                                            {isMMPI ? (
+                                                <span className="text-gray-400">-</span>
+                                            ) : res.score !== null ? (
                                                 <span className="font-bold text-lg text-blue-600">{res.score}</span>
                                             ) : (
                                                 <span className="text-gray-400 text-sm font-normal">-</span>

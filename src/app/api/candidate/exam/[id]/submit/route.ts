@@ -50,9 +50,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
             const { id: examId } = await params;
 
-            // ✅ SECURITY FIX: Validate attempt ownership, status, AND time limit in ONE query
+            // ✅ TIMEZONE FIX: Calculate elapsed time in PostgreSQL to avoid JS/DB timezone mismatch
             const attemptValidation = await client.query(
-                `SELECT ea.id, ea.status, ea.start_time, ea.user_id, e.duration_minutes, e.exam_type
+                `SELECT ea.id, ea.status, ea.user_id, e.duration_minutes, e.exam_type,
+                        EXTRACT(EPOCH FROM (NOW() - ea.start_time)) / 60 as elapsed_minutes
                  FROM exam_attempts ea
                  JOIN exams e ON ea.exam_id = e.id
                  WHERE ea.id = $1 AND ea.exam_id = $2`,
@@ -84,10 +85,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 return NextResponse.json({ error: 'Status ujian tidak valid' }, { status: 403 });
             }
 
-            // ✅ SECURITY FIX #3: Validate time limit (add 2 minutes grace period)
-            const startTime = new Date(attempt.start_time);
-            const now = new Date();
-            const elapsedMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
+            // ✅ TIMEZONE FIX: Use elapsed_minutes from PostgreSQL query
+            const elapsedMinutes = parseFloat(attempt.elapsed_minutes) || 0;
             const gracePeriodMinutes = 2; // 2 minutes grace for submission
             
             if (elapsedMinutes > attempt.duration_minutes + gracePeriodMinutes) {

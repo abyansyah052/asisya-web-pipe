@@ -37,7 +37,8 @@ export async function decrypt(token: string): Promise<SessionData | null> {
       id: payload.id as number,
       role: payload.role as string,
       username: payload.username as string,
-      profileCompleted: payload.profileCompleted as boolean | undefined
+      profileCompleted: payload.profileCompleted as boolean | undefined,
+      organizationId: payload.organizationId as number | undefined
     };
   } catch {
     return null;

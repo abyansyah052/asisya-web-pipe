@@ -61,14 +61,14 @@ export async function POST(req: Request) {
         // ✅ SECURITY FIX: Separate queries for username and email to prevent SQL injection ambiguity
         // First try username
         let result = await pool.query(
-            'SELECT id, username, password_hash, role, is_active, profile_completed FROM users WHERE username = $1 LIMIT 1',
+            'SELECT id, username, password_hash, role, is_active, profile_completed, organization_id FROM users WHERE username = $1 LIMIT 1',
             [username]
         );
         
         // If not found, try email
         if (result.rows.length === 0) {
             result = await pool.query(
-                'SELECT id, username, password_hash, role, is_active, profile_completed FROM users WHERE email = $1 LIMIT 1',
+                'SELECT id, username, password_hash, role, is_active, profile_completed, organization_id FROM users WHERE email = $1 LIMIT 1',
                 [username]
             );
         }
@@ -104,7 +104,8 @@ export async function POST(req: Request) {
             id: user.id,
             role: user.role,
             username: user.username,
-            profileCompleted: user.profile_completed
+            profileCompleted: user.profile_completed,
+            organizationId: user.organization_id
         };
         const token = await encrypt(sessionData);
         const redirectPath = getLoginRedirect(user.role);

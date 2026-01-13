@@ -61,12 +61,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             }
 
             // 2. ✅ SECURITY FIX: Check for existing attempts and prevent multiple in_progress
+            // Also calculate elapsed seconds directly in PostgreSQL to avoid timezone issues
             const attemptRes = await client.query(
-                'SELECT id, status, start_time FROM exam_attempts WHERE user_id = $1 AND exam_id = $2 ORDER BY created_at DESC LIMIT 1',
+                `SELECT id, status, start_time, 
+                        EXTRACT(EPOCH FROM (NOW() - start_time))::integer as elapsed_seconds
+                 FROM exam_attempts 
+                 WHERE user_id = $1 AND exam_id = $2 
+                 ORDER BY created_at DESC LIMIT 1`,
                 [user.id, examId]
             );
 
             let attemptId: number;
+            let elapsedSeconds: number;
             let startTime: Date;
             
             if (attemptRes.rows.length > 0) {
@@ -79,9 +85,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 
                 // Continue existing in_progress attempt
                 attemptId = attempt.id;
+                elapsedSeconds = attempt.elapsed_seconds || 0;
                 startTime = new Date(attempt.start_time);
+                
+                console.log(`[EXAM] Resuming attempt ${attemptId}, elapsed=${elapsedSeconds}s`);
             } else {
-                // ✅ Start new attempt with row-level lock to prevent race condition
+                // ✅ Start new attempt - elapsed time is 0
                 const newAttempt = await client.query(
                     `INSERT INTO exam_attempts (user_id, exam_id, start_time, status) 
                      VALUES ($1, $2, NOW(), $3) 
@@ -89,17 +98,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                     [user.id, examId, 'in_progress']
                 );
                 attemptId = newAttempt.rows[0].id;
+                elapsedSeconds = 0;
                 startTime = new Date(newAttempt.rows[0].start_time);
+                console.log(`[EXAM] New attempt ${attemptId}, elapsed=0s`);
             }
 
-            // ✅ Calculate remaining time based on start_time
-            const now = new Date();
-            const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+            // ✅ Calculate remaining time (all calculation done in PostgreSQL)
             const totalSeconds = exam.duration_minutes * 60;
             const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+            
+            console.log(`[EXAM] User ${user.id}, Exam ${examId}: elapsed=${elapsedSeconds}s, total=${totalSeconds}s, remaining=${remainingSeconds}s`);
 
             // ✅ If time already expired, mark as completed
             if (remainingSeconds === 0) {
+                console.log(`[EXAM] Time expired! Marking attempt ${attemptId} as completed`);
                 await client.query(
                     'UPDATE exam_attempts SET status = $1, end_time = NOW() WHERE id = $2 AND status = $3',
                     ['completed', attemptId, 'in_progress']
