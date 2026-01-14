@@ -343,12 +343,17 @@ export async function GET(
                 const profile = profilesMap[attempt.user_id] || {};
 
                 // ✅ Use access code as nomor_peserta (from candidate_codes)
+                // ✅ Format end_time with Indonesia timezone (WIB = UTC+7)
+                const endTimeFormatted = attempt.end_time 
+                    ? new Date(attempt.end_time).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) 
+                    : '-';
+                    
                 profileData.push([
                     index + 1,
                     attempt.full_name || attempt.username || '-',
                     attempt.nomor_peserta || '-',
                     profile.gender || '-',
-                    profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID') : '-',
+                    profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-',
                     profile.usia || '-',
                     profile.address || '-',
                     profile.nik || '-',
@@ -357,7 +362,7 @@ export async function GET(
                     profile.institution || '-',
                     profile.marital_status || '-',
                     attempt.score || 0,
-                    attempt.end_time ? new Date(attempt.end_time).toLocaleString('id-ID') : '-'
+                    endTimeFormatted
                 ]);
             });
 
