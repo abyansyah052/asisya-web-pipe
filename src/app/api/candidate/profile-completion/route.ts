@@ -14,30 +14,45 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // ✅ Fetch profile data from user_profiles table + candidate_name from candidate_codes
-        const profiles = await query<any>(
+        // ✅ Fetch profile data from user_profiles table
+        const profileResult = await query<any>(
             `SELECT up.full_name, up.tanggal_lahir, up.jenis_kelamin, up.pendidikan_terakhir, 
                     up.pekerjaan, up.lokasi_test, up.alamat_ktp, up.nik, up.marital_status, up.foto,
-                    u.profile_completed,
-                    COALESCE(cc.metadata->>'candidate_name', cc.metadata->>'name') as candidate_name_from_code
+                    u.profile_completed
              FROM users u
              LEFT JOIN user_profiles up ON u.id = up.user_id
-             LEFT JOIN candidate_codes cc ON u.id = cc.candidate_id
-             WHERE u.id = $1
-             ORDER BY cc.used_at DESC
+             WHERE u.id = $1`,
+            [user.id]
+        );
+
+        // ✅ Fetch candidate_name from candidate_codes separately
+        const codeResult = await query<any>(
+            `SELECT COALESCE(metadata->>'candidate_name', metadata->>'name') as candidate_name_from_code
+             FROM candidate_codes
+             WHERE candidate_id = $1
+             ORDER BY used_at DESC NULLS LAST
              LIMIT 1`,
             [user.id]
         );
 
-        if (profiles.length === 0) {
-            return NextResponse.json({ profile: null });
-        }
-
-        const profile = profiles[0];
+        const profile = profileResult[0] || {
+            full_name: '',
+            tanggal_lahir: '',
+            jenis_kelamin: '',
+            pendidikan_terakhir: '',
+            pekerjaan: '',
+            lokasi_test: '',
+            alamat_ktp: '',
+            nik: '',
+            marital_status: '',
+            foto: null,
+            profile_completed: false
+        };
         
         // If full_name is empty, use candidate_name from code metadata
-        if (!profile.full_name && profile.candidate_name_from_code) {
-            profile.full_name = profile.candidate_name_from_code;
+        const candidateName = codeResult[0]?.candidate_name_from_code;
+        if (!profile.full_name && candidateName) {
+            profile.full_name = candidateName;
         }
 
         return NextResponse.json({ profile });
