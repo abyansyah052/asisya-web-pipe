@@ -22,7 +22,16 @@ export async function GET() {
             // ✅ OPTIMIZED: Single CTE query with specific columns (no SELECT *)
             const dashboardQuery = `
                 WITH user_info AS (
-                    SELECT id, username, email, full_name FROM users WHERE id = $1
+                    SELECT u.id, u.username, u.email, 
+                           COALESCE(
+                               cc.metadata->>'candidate_name',
+                               cc.metadata->>'name'
+                           ) as full_name
+                    FROM users u
+                    LEFT JOIN candidate_codes cc ON u.id = cc.candidate_id
+                    WHERE u.id = $1
+                    ORDER BY cc.used_at DESC NULLS LAST
+                    LIMIT 1
                 ),
                 in_progress_exam AS (
                     SELECT ea.id as attempt_id, ea.exam_id, e.title
