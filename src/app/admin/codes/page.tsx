@@ -818,56 +818,59 @@ export default function AdminCodesPage() {
 
             {/* Generate Modal */}
             {showGenerateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
-                        <h3 className="text-xl font-bold text-gray-900 mb-6">Generate Kode Akses Baru</h3>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+                        <div className="shrink-0 p-6 pb-0">
+                            <h3 className="text-xl font-bold text-gray-900 mb-6">Generate Kode Akses Baru</h3>
+                        </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Jumlah Kode
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="100"
-                                    value={generateCount}
-                                    onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
-                                />
-                            </div>
+                        <div className="flex-1 overflow-y-auto px-6 pb-4 min-h-0">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Jumlah Kode
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="100"
+                                        value={generateCount}
+                                        onChange={(e) => setGenerateCount(parseInt(e.target.value) || 1)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                    />
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Untuk Ujian (Opsional)
-                                </label>
-                                <select
-                                    value={selectedExam || ''}
-                                    onChange={(e) => setSelectedExam(e.target.value ? parseInt(e.target.value) : null)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
-                                >
-                                    <option value="">Semua Ujian</option>
-                                    {exams.map(exam => (
-                                        <option key={exam.id} value={exam.id}>{exam.title}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Untuk Ujian (Opsional)
+                                    </label>
+                                    <select
+                                        value={selectedExam || ''}
+                                        onChange={(e) => setSelectedExam(e.target.value ? parseInt(e.target.value) : null)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                    >
+                                        <option value="">Semua Ujian</option>
+                                        {exams.map(exam => (
+                                            <option key={exam.id} value={exam.id}>{exam.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Masa Berlaku (Hari)
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="365"
-                                    value={expiresInDays}
-                                    onChange={(e) => setExpiresInDays(parseInt(e.target.value) || 7)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
-                                />
-                            </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Masa Berlaku (Hari)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="365"
+                                        value={expiresInDays}
+                                        onChange={(e) => setExpiresInDays(parseInt(e.target.value) || 7)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                    />
+                                </div>
 
-                            <div>
+                                <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Kode Internal Perusahaan
                                 </label>
@@ -923,7 +926,7 @@ export default function AdminCodesPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Nama Kandidat (Opsional)
                                 </label>
-                                <div className="max-h-60 overflow-y-auto space-y-2">
+                                <div className="max-h-[35vh] overflow-y-auto space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50">
                                     {candidateNames.map((name, idx) => (
                                         <div key={idx} className="flex items-center gap-2">
                                             <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium shrink-0">
@@ -938,7 +941,7 @@ export default function AdminCodesPage() {
                                                     setCandidateNames(newNames);
                                                 }}
                                                 placeholder={`Nama kandidat ${idx + 1}`}
-                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                                             />
                                         </div>
                                     ))}
@@ -949,9 +952,10 @@ export default function AdminCodesPage() {
                                     </p>
                                 )}
                             </div>
+                            </div>
                         </div>
 
-                        <div className="flex gap-3 mt-6">
+                        <div className="flex gap-3 p-6 pt-4 border-t bg-white shrink-0 rounded-b-xl">
                             <button
                                 onClick={() => setShowGenerateModal(false)}
                                 className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium"

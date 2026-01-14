@@ -13,7 +13,7 @@
 
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-require('dotenv').config({ path: '../.env.local' });
+require('dotenv').config({ path: '.env.local' });
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -87,27 +87,54 @@ async function fixAuthority() {
                 const pwdInfo = user.resetPassword ? ` (password: ${DEFAULT_PASSWORD})` : '';
                 console.log(`  ✅ Fixed ID ${u.id}: ${u.username} → ${u.role}${pwdInfo}`);
             } else {
-                console.log(`  ⚠️ User ID ${user.id} not found, creating...`);
+                console.log(`  ⚠️ User ID ${user.id} not found, checking by username...`);
                 
-                // Create user if not exists
-                const insertQuery = `
-                    INSERT INTO users (id, username, password_hash, role, full_name, email)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    ON CONFLICT (id) DO UPDATE SET role = $4, password_hash = $3
-                    RETURNING id, username, role
-                `;
-                const insertParams = [
-                    user.id, 
-                    user.username, 
-                    hashedPassword, 
-                    user.role, 
-                    user.name,
-                    `${user.username}@asisya.local`
-                ];
+                // Check if user exists with different ID
+                const checkQuery = `SELECT id, username, role FROM users WHERE username = $1`;
+                const checkResult = await client.query(checkQuery, [user.username]);
                 
-                const insertResult = await client.query(insertQuery, insertParams);
-                if (insertResult.rows.length > 0) {
-                    console.log(`  ✅ Created ID ${user.id}: ${user.username} → ${user.role}`);
+                if (checkResult.rows.length > 0) {
+                    // User exists with different ID, update that user
+                    const existingUser = checkResult.rows[0];
+                    console.log(`  ℹ️  Found ${user.username} with ID ${existingUser.id}, updating...`);
+                    
+                    const updateQuery = `
+                        UPDATE users 
+                        SET role = $1, password_hash = $2, full_name = COALESCE(full_name, $3)
+                        WHERE username = $4
+                        RETURNING id, username, role
+                    `;
+                    const updateResult = await client.query(updateQuery, [
+                        user.role, 
+                        hashedPassword, 
+                        user.name, 
+                        user.username
+                    ]);
+                    
+                    if (updateResult.rows.length > 0) {
+                        const u = updateResult.rows[0];
+                        console.log(`  ✅ Updated: ${u.username} (ID ${u.id}) → ${u.role}`);
+                    }
+                } else {
+                    // Create user if not exists
+                    const insertQuery = `
+                        INSERT INTO users (username, password_hash, role, full_name, email)
+                        VALUES ($1, $2, $3, $4, $5)
+                        RETURNING id, username, role
+                    `;
+                    const insertParams = [
+                        user.username, 
+                        hashedPassword, 
+                        user.role, 
+                        user.name,
+                        `${user.username}@asisya.local`
+                    ];
+                    
+                    const insertResult = await client.query(insertQuery, insertParams);
+                    if (insertResult.rows.length > 0) {
+                        const u = insertResult.rows[0];
+                        console.log(`  ✅ Created: ${u.username} (ID ${u.id}) → ${u.role}`);
+                    }
                 }
             }
         }

@@ -162,17 +162,17 @@ export default function CandidateDashboard() {
         <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#E6FBFB] to-slate-50">
             {/* Instructions Modal - Kimia Farma Navy & Teal Theme */}
             {showInstructionsModal && selectedExam && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-                    <div className="bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4">
+                    <div className="bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200 overflow-hidden">
                         {/* Modal Header with Navy & Teal Gradient */}
-                        <div className="relative bg-gradient-to-br from-[#071F56] via-[#0993A9] to-[#2A8D9B] px-4 sm:px-8 py-5 sm:py-8 text-white overflow-hidden">
+                        <div className="shrink-0 relative bg-gradient-to-br from-[#071F56] via-[#0993A9] to-[#2A8D9B] px-4 sm:px-8 py-5 sm:py-8 text-white overflow-hidden">
                             {/* Decorative circles */}
                             <div className="absolute -top-10 -right-10 w-32 sm:w-40 h-32 sm:h-40 bg-white/10 rounded-full"></div>
                             <div className="absolute -bottom-20 -left-10 w-48 sm:w-60 h-48 sm:h-60 bg-white/5 rounded-full"></div>
                             
                             <button
                                 onClick={() => setShowInstructionsModal(false)}
-                                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-3 rounded-full hover:bg-white/20 transition-colors"
+                                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-3 rounded-full hover:bg-white/20 transition-colors text-gray-900 bg-white/80"
                                 aria-label="Tutup"
                             >
                                 <X size={24} className="sm:w-6 sm:h-6" />
@@ -193,7 +193,7 @@ export default function CandidateDashboard() {
                         </div>
 
                         {/* Modal Body */}
-                        <div className="px-4 sm:px-8 py-4 sm:py-6 max-h-[50vh] overflow-y-auto">
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 min-h-0">
                             {/* Info Cards */}
                             <div className="grid grid-cols-2 gap-2 sm:gap-4 mb-4 sm:mb-6">
                                 <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-br from-[#E6FBFB] to-[#BEE7F0]/50 rounded-xl sm:rounded-2xl border border-[#0993A9]/20">
@@ -241,8 +241,8 @@ export default function CandidateDashboard() {
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="px-4 sm:px-8 py-4 sm:py-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-between sm:items-center">
+                        {/* Modal Footer - Fixed at bottom */}
+                        <div className="shrink-0 px-4 sm:px-8 py-4 sm:py-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-between sm:items-center sticky bottom-0">
                             <button
                                 onClick={() => setShowInstructionsModal(false)}
                                 className="px-4 sm:px-6 py-2.5 sm:py-3 text-slate-600 font-semibold hover:bg-slate-200 rounded-xl transition-colors order-2 sm:order-1 text-sm sm:text-base"
