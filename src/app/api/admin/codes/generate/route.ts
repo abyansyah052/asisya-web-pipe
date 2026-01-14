@@ -70,10 +70,19 @@ export async function POST(req: NextRequest) {
             count = 1, 
             examId, 
             expiresInDays = 7, 
-            candidateName,
+            candidateName,    // Single name (backward compatibility)
+            candidateNames,   // Array of names (new format)
             companyCodeId,  // Company code ID - 4-digit internal code determined by superadmin
             useLegacyFormat = false  // Use old 16-char format
         } = await req.json();
+
+        // Process candidate names - support both single name and array
+        const names: string[] = [];
+        if (candidateNames && Array.isArray(candidateNames)) {
+            names.push(...candidateNames.filter((n: string) => n && n.trim()));
+        } else if (candidateName && typeof candidateName === 'string' && candidateName.trim()) {
+            names.push(candidateName.trim());
+        }
 
         if (count < 1 || count > 100) {
             return NextResponse.json({ error: 'Jumlah kode harus antara 1-100' }, { status: 400 });
@@ -144,8 +153,10 @@ export async function POST(req: NextRequest) {
                     const code = `${prefix}${String(nextNum + i).padStart(4, '0')}`;
                     codes.push(code);
 
-                    const metadata = candidateName && count === 1
-                        ? JSON.stringify({ name: candidateName })
+                    // Use name from array if available (by index), otherwise empty
+                    const nameForCode = names[i] || '';
+                    const metadata = nameForCode
+                        ? JSON.stringify({ name: nameForCode })
                         : '{}';
 
                     placeholders.push(
@@ -200,8 +211,10 @@ export async function POST(req: NextRequest) {
 
                     if (!isUnique) continue;
 
-                    const metadata = candidateName && count === 1
-                        ? JSON.stringify({ name: candidateName })
+                    // Use name from array if available (by index), otherwise empty
+                    const nameForCode = names[i] || '';
+                    const metadata = nameForCode
+                        ? JSON.stringify({ name: nameForCode })
                         : '{}';
 
                     await client.query(

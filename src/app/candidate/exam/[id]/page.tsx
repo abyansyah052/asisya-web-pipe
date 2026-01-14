@@ -403,7 +403,13 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
                     <div className="bg-white w-full sm:w-auto sm:min-w-[400px] sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[70vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-4 border-b bg-slate-50">
                             <h3 className="font-bold text-gray-800">Navigasi Soal</h3>
-                            <button onClick={() => setShowNavigator(false)} className="p-2 hover:bg-gray-200 rounded-lg"><X size={20} /></button>
+                            <button 
+                                onClick={() => setShowNavigator(false)} 
+                                className="p-2.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                aria-label="Tutup"
+                            >
+                                <X size={22} className="text-gray-900" />
+                            </button>
                         </div>
                         <div className="p-4 overflow-auto max-h-[50vh]">
                             <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-4">
@@ -424,21 +430,27 @@ export default function ExamPage({ params }: { params: Promise<{ id: string }> }
             {/* Instructions Modal */}
             {showInstructions && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowInstructions(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[70vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-[#071F56] to-[#0993A9] text-white">
                             <h3 className="font-bold flex items-center gap-2">
                                 <HelpCircle size={20} />
                                 Petunjuk Pengerjaan
                             </h3>
-                            <button onClick={() => setShowInstructions(false)} className="p-1.5 hover:bg-white/20 rounded-lg"><X size={18} /></button>
+                            <button 
+                                onClick={() => setShowInstructions(false)} 
+                                className="p-2.5 hover:bg-white/20 rounded-lg transition-colors"
+                                aria-label="Tutup"
+                            >
+                                <X size={22} />
+                            </button>
                         </div>
-                        <div className="p-4 overflow-auto max-h-[50vh]">
+                        <div className="p-4 overflow-auto max-h-[55vh]">
                             <pre className="whitespace-pre-wrap text-sm text-gray-700 font-sans leading-relaxed">
                                 {EXAM_INSTRUCTIONS[examType] || EXAM_INSTRUCTIONS.general}
                             </pre>
                         </div>
                         <div className="p-4 border-t bg-slate-50">
-                            <button onClick={() => setShowInstructions(false)} className="w-full py-2.5 bg-[#0993A9] text-white rounded-xl font-semibold hover:bg-[#0ba8c2]">
+                            <button onClick={() => setShowInstructions(false)} className="w-full py-3 bg-[#0993A9] text-white rounded-xl font-semibold hover:bg-[#0ba8c2] text-base">
                                 Mengerti
                             </button>
                         </div>

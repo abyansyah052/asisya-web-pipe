@@ -48,7 +48,7 @@ export default function AdminCodesPage() {
     const [generateCount, setGenerateCount] = useState(1);
     const [selectedExam, setSelectedExam] = useState<number | null>(null);
     const [expiresInDays, setExpiresInDays] = useState(7);
-    const [candidateName, setCandidateName] = useState('');
+    const [candidateNames, setCandidateNames] = useState<string[]>(['']);
     const [selectedCompanyCode, setSelectedCompanyCode] = useState<number | null>(null);
     const [useLegacyFormat, setUseLegacyFormat] = useState(false);
 
@@ -156,6 +156,21 @@ export default function AdminCodesPage() {
         fetchCompanyCodes();
     }, []);
 
+    // Sync candidateNames array with generateCount
+    useEffect(() => {
+        setCandidateNames(prev => {
+            const newNames = [...prev];
+            if (newNames.length < generateCount) {
+                while (newNames.length < generateCount) {
+                    newNames.push('');
+                }
+            } else if (newNames.length > generateCount) {
+                newNames.length = generateCount;
+            }
+            return newNames;
+        });
+    }, [generateCount]);
+
     const fetchCodes = async () => {
         try {
             const res = await fetch('/api/admin/codes');
@@ -201,6 +216,9 @@ export default function AdminCodesPage() {
     const generateCodes = async () => {
         setGenerating(true);
         try {
+            // Filter out empty names and prepare data
+            const validNames = candidateNames.filter(n => n.trim()).map(n => n.trim());
+            
             const res = await fetch('/api/admin/codes/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -208,7 +226,7 @@ export default function AdminCodesPage() {
                     count: generateCount,
                     examId: selectedExam,
                     expiresInDays,
-                    candidateName: candidateName || null,
+                    candidateNames: validNames.length > 0 ? validNames : null,
                     companyCodeId: selectedCompanyCode,
                     useLegacyFormat
                 })
@@ -223,7 +241,7 @@ export default function AdminCodesPage() {
                 setGenerateCount(1);
                 setSelectedExam(null);
                 setExpiresInDays(7);
-                setCandidateName('');
+                setCandidateNames(['']);
                 setSelectedCompanyCode(null);
                 setUseLegacyFormat(false);
             } else {
@@ -901,20 +919,36 @@ export default function AdminCodesPage() {
                                 </div>
                             )}
 
-                            {generateCount === 1 && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Nama Kandidat (Opsional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={candidateName}
-                                        onChange={(e) => setCandidateName(e.target.value)}
-                                        placeholder="Nama kandidat"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
-                                    />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Nama Kandidat (Opsional)
+                                </label>
+                                <div className="max-h-60 overflow-y-auto space-y-2">
+                                    {candidateNames.map((name, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                            <span className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium shrink-0">
+                                                {idx + 1}
+                                            </span>
+                                            <input
+                                                type="text"
+                                                value={name}
+                                                onChange={(e) => {
+                                                    const newNames = [...candidateNames];
+                                                    newNames[idx] = e.target.value;
+                                                    setCandidateNames(newNames);
+                                                }}
+                                                placeholder={`Nama kandidat ${idx + 1}`}
+                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
+                                {generateCount > 1 && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Isi nama untuk setiap kode yang akan di-generate
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         <div className="flex gap-3 mt-6">

@@ -2,13 +2,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Users, CheckCircle } from 'lucide-react';
+import { KeyRound, Users, CheckCircle, X, User } from 'lucide-react';
 
 export default function CandidateLoginPage() {
   const router = useRouter();
   const [candidateCode, setCandidateCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Confirmation modal state
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [candidateName, setCandidateName] = useState('');
+  const [profileCompleted, setProfileCompleted] = useState(false);
 
   const handleCandidateLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +30,18 @@ export default function CandidateLoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        if (!data.profileCompleted) {
-          router.push('/candidate/profile-completion');
+        // If there's a candidate name, show confirmation popup
+        if (data.candidateName) {
+          setCandidateName(data.candidateName);
+          setProfileCompleted(data.profileCompleted);
+          setShowConfirmation(true);
         } else {
-          router.push('/candidate/dashboard');
+          // No name available, proceed directly
+          if (!data.profileCompleted) {
+            router.push('/candidate/profile-completion');
+          } else {
+            router.push('/candidate/dashboard');
+          }
         }
       } else {
         setError(data.error || 'Kode tidak valid');
@@ -38,6 +51,25 @@ export default function CandidateLoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmProceed = () => {
+    if (!profileCompleted) {
+      router.push('/candidate/profile-completion');
+    } else {
+      router.push('/candidate/dashboard');
+    }
+  };
+
+  const handleCancelConfirmation = async () => {
+    // Logout the candidate since they cancelled
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore logout errors
+    }
+    setShowConfirmation(false);
+    setCandidateName('');
   };
 
   // Format code input with dashes - 12 characters
@@ -168,6 +200,50 @@ export default function CandidateLoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#071F56] to-[#0993A9] p-6 text-white text-center">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User size={32} className="text-white" />
+              </div>
+              <h2 className="text-xl font-bold">Konfirmasi Identitas</h2>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 text-center">
+              <p className="text-slate-600 mb-4">Apakah Anda bernama:</p>
+              <div className="bg-gradient-to-r from-[#E6FBFB] to-[#D5F4F8] rounded-xl p-4 mb-6">
+                <p className="text-2xl font-bold text-[#071F56]">{candidateName}</p>
+              </div>
+              <p className="text-sm text-slate-500">
+                Pastikan nama di atas sesuai dengan identitas Anda sebelum melanjutkan.
+              </p>
+            </div>
+            
+            {/* Actions */}
+            <div className="p-6 pt-0 flex gap-3">
+              <button
+                onClick={handleCancelConfirmation}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <X size={18} />
+                Bukan Saya
+              </button>
+              <button
+                onClick={handleConfirmProceed}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-[#071F56] to-[#0993A9] text-white rounded-xl hover:from-[#0a2a70] hover:to-[#0ba8c2] font-semibold transition-all shadow-lg flex items-center justify-center gap-2"
+              >
+                <CheckCircle size={18} />
+                Ya, Benar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

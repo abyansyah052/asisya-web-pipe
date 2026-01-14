@@ -172,9 +172,10 @@ export default function CandidateDashboard() {
                             
                             <button
                                 onClick={() => setShowInstructionsModal(false)}
-                                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 rounded-full hover:bg-white/20 transition-colors"
+                                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-3 rounded-full hover:bg-white/20 transition-colors"
+                                aria-label="Tutup"
                             >
-                                <X size={20} className="sm:w-6 sm:h-6" />
+                                <X size={24} className="sm:w-6 sm:h-6" />
                             </button>
                             
                             <div className="relative z-10">

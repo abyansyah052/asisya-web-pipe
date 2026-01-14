@@ -190,6 +190,25 @@ export async function POST(req: NextRequest) {
         // Check if code was already used (for redirect logic)
         const codeWasUsed = codeData.current_uses > 0 && codeData.used_at;
 
+        // Get candidate name from metadata or user record
+        let displayName = '';
+        if (codeData.metadata && typeof codeData.metadata === 'object' && codeData.metadata.name) {
+            displayName = codeData.metadata.name;
+        } else if (codeData.metadata && typeof codeData.metadata === 'object' && codeData.metadata.candidate_name) {
+            displayName = codeData.metadata.candidate_name;
+        }
+
+        // If no name in metadata, try to get from users table
+        if (!displayName && codeData.candidate_id) {
+            const userResult = await client.query(
+                'SELECT full_name FROM users WHERE id = $1',
+                [codeData.candidate_id]
+            );
+            if (userResult.rows.length > 0 && userResult.rows[0].full_name) {
+                displayName = userResult.rows[0].full_name;
+            }
+        }
+
         // Create JWT
         const token = await encrypt({
             id: userId,
@@ -204,7 +223,8 @@ export async function POST(req: NextRequest) {
             role: ROLES.CANDIDATE,
             profileCompleted: profileCompleted,
             examId: codeData.exam_id,
-            codeUsed: codeWasUsed  // 🔴 NEW: Tell frontend if code was already used
+            codeUsed: codeWasUsed,  // Tell frontend if code was already used
+            candidateName: displayName || null  // Name for confirmation popup
         });
 
         // Use user_session cookie name for consistency
